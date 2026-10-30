@@ -13,11 +13,13 @@ namespace GenerationMayhem.Player
     public class SkatePawnController : MonoBehaviour
     {
         [Header("Move")]
-        [SerializeField] float maxSpeed = 12f;
-        [SerializeField] float accel = 28f;
+        [SerializeField] float maxSpeed = 8.4f;          // PACE 1029: was 12 (-30%)
+        [SerializeField] float accel = 20f;              // PACE 1029: was 28 (-29%)
         [SerializeField] float brakeDecel = 36f;
         [SerializeField] float coastDecel = 6f;
-        [SerializeField] float turnRateDeg = 220f;
+        [SerializeField] float turnRateDeg = 160f;       // PACE 1029: was 220 (-27%)
+        [Tooltip("Hold Shift = fast gear. 8.4 x 1.4 = 11.76, ~old 12 top speed.")]
+        [SerializeField] float sprintMultiplier = 1.4f;
         [SerializeField] float airControl = 0.35f;
 
         [Header("Ground / Gravity")]
@@ -55,6 +57,9 @@ namespace GenerationMayhem.Player
         public float SpeedMultiplier { get; set; } = 1f;
         /// <summary>Phase 0 weapon upgrades (Chaos Wheels pace). Multiplies top speed.</summary>
         public float UpgradeSpeedScale { get; set; } = 1f;
+        /// <summary>PACE 1029: Shift = fast gear.</summary>
+        public bool Sprinting => !InputLocked && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
+        float GearScale => Sprinting ? sprintMultiplier : 1f;
         public float MaxSpeed => maxSpeed * UpgradeSpeedScale;
         public float Gravity => gravity;
         public float VerticalSpeed => _verticalSpeed;
@@ -143,7 +148,7 @@ namespace GenerationMayhem.Player
             if (hasInput && wishDir.sqrMagnitude > 0.001f)
             {
                 // Accelerate toward wish; steer facing.
-                planar = Vector3.MoveTowards(planar, wishDir * maxSpeed * UpgradeSpeedScale * SpeedMultiplier, accel * TractionMultiplier * dt);
+                planar = Vector3.MoveTowards(planar, wishDir * maxSpeed * GearScale * UpgradeSpeedScale * SpeedMultiplier, accel * TractionMultiplier * dt);
                 Quaternion targetRot = Quaternion.LookRotation(wishDir, Vector3.up);
                 transform.rotation = Quaternion.RotateTowards(
                     transform.rotation, targetRot, turnRateDeg * Mathf.Max(0.2f, TractionMultiplier) * dt);
