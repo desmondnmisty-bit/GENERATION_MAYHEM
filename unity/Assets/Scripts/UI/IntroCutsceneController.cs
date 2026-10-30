@@ -1,9 +1,12 @@
-// COLD OPEN. Plays before StartMenu. Short captions only (1 line/beat). Click/Space/Enter = next, auto-advance on timer.
+// COLD OPEN. BAKE-ONLY 1030: gm_cold_open.mp4 has captions + title sting burned in -> no HUD subtitle/title over video, no JSON needed.
+// Natural end: fade -> LoadScene (no duplicate Tag card). SKIP/Esc/Backspace/Tab/Start early -> Tag() tagline -> StartMenu. Stills beats = fallback if video missing/fails.
+// Stills fallback: Click/Space/Enter = next, auto-advance on timer.
 // Real art: drop sprites into Assets/Resources/Intro/<slot>.png (Texture Type = Sprite) OR assign in the Inspector 'art' array.
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.Video;
 
 namespace GenerationMayhem.UI
 {
@@ -37,6 +40,24 @@ namespace GenerationMayhem.UI
         Image _art, _fade, _bolt, _tint; Text _title, _caption, _ph; RectTransform _stage; GameObject _skip;
         bool _next, _done;
 
+        // --- VIDEO COLD OPEN (1029): Resources/Intro/gm_cold_open.mp4 + gm_cold_open_dialogue.json. Falls back to stills beats if either is missing.
+        [System.Serializable] public class DialogueLine { public string id, frame, speaker, line; public float durationSec; }
+        [System.Serializable] class DialogueWrap { public DialogueLine[] items; }
+        public VideoClip videoClip;                // optional override; else Resources.Load("Intro/gm_cold_open")
+        public TextAsset dialogueJson;             // optional override; else Resources.Load("Intro/gm_cold_open_dialogue")
+        VideoPlayer _vp; RenderTexture _rt; RawImage _video; bool _videoEnded;
+
+        static DialogueLine[] ParseDialogue(TextAsset ta)
+        {
+            if (!ta || string.IsNullOrEmpty(ta.text)) return null;
+            try
+            {
+                var w = JsonUtility.FromJson<DialogueWrap>("{\"items\":" + ta.text.Trim() + "}"); // JsonUtility can't read a top-level array
+                return (w != null && w.items != null && w.items.Length > 0) ? w.items : null;
+            }
+            catch (System.Exception e) { Debug.LogWarning("[Intro] dialogue JSON parse failed: " + e.Message); return null; }
+        }
+
         void Start()
         {
             Time.timeScale = 1f;
@@ -56,13 +77,65 @@ namespace GenerationMayhem.UI
             GMUIKit.Button(skipR, "SKIP >>", GMUIKit.Pink, Skip); _skip = skipR.gameObject; _skip.SetActive(false);
 
             _fade = GMUIKit.Panel(c, "Fade", Color.black, Vector2.zero, Vector2.one); _fade.raycastTarget = false;
-            StartCoroutine(Run());
+            var clip = videoClip ? videoClip : Resources.Load<VideoClip>("Intro/gm_cold_open");
+            if (clip) StartCoroutine(RunVideo(clip)); // BAKE-ONLY 1030: JSON not required (kept only as optional data)
+            else { Debug.Log("[Intro] video missing -> stills fallback"); StartCoroutine(Run()); }
         }
+
+        IEnumerator RunVideo(VideoClip clip)
+        {
+            _art.gameObject.SetActive(false); _ph.text = ""; _tint.color = Color.clear;
+            _title.text = ""; _caption.text = ""; // BAKE-ONLY: hide HUD text during video
+            _title.gameObject.SetActive(false); _caption.gameObject.SetActive(false); _bolt.gameObject.SetActive(false);
+            int w = clip.width > 0 ? (int)clip.width : 1280, h = clip.height > 0 ? (int)clip.height : 720;
+            _rt = new RenderTexture(w, h, 0);
+            _video = new GameObject("Video", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
+            var vr = (RectTransform)_video.transform; vr.SetParent(_stage, false);
+            vr.anchorMin = new Vector2(0.005f, 0.008f); vr.anchorMax = new Vector2(0.995f, 0.992f); vr.offsetMin = vr.offsetMax = Vector2.zero;
+            vr.SetSiblingIndex(_art.transform.GetSiblingIndex() + 1);
+            _video.texture = _rt; _video.raycastTarget = false;
+            var fit = _video.gameObject.AddComponent<AspectRatioFitter>(); fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent; fit.aspectRatio = (float)w / h;
+
+            _vp = gameObject.AddComponent<VideoPlayer>();
+            _vp.playOnAwake = false; _vp.source = VideoSource.VideoClip; _vp.clip = clip; _vp.isLooping = false;
+            _vp.renderMode = VideoRenderMode.RenderTexture; _vp.targetTexture = _rt;
+            if (clip.audioTrackCount > 0)
+            {
+                var src = gameObject.AddComponent<AudioSource>(); src.playOnAwake = false;
+                _vp.audioOutputMode = VideoAudioOutputMode.AudioSource; _vp.controlledAudioTrackCount = 1;
+                _vp.EnableAudioTrack(0, true); _vp.SetTargetAudioSource(0, src);
+            }
+            else _vp.audioOutputMode = VideoAudioOutputMode.None; // current 1030 clip is video-only
+            _vp.loopPointReached += _ => _videoEnded = true;
+            _vp.Prepare();
+            for (float t = 0; !_vp.isPrepared && t < 5f; t += Time.unscaledDeltaTime) yield return null;
+            if (!_vp.isPrepared) { Debug.LogWarning("[Intro] video failed to prepare -> stills fallback"); CleanupVideo(); _art.gameObject.SetActive(true); _title.gameObject.SetActive(true); _caption.gameObject.SetActive(true); _bolt.gameObject.SetActive(true); yield return Run(); yield break; }
+            _vp.Play();
+            yield return Fade(1, 0, 0.5f);
+            _skip.SetActive(true);
+
+            // BAKE-ONLY: captions are in the video. Click/Space do nothing here; Esc/SKIP -> Skip() -> Tag().
+            float cap = (float)clip.length + 3f; // safety cap if loopPointReached never fires
+            for (float t = 0; !_videoEnded && _vp && (_vp.isPlaying || _vp.frame < 1) && t < cap; t += Time.unscaledDeltaTime) yield return null;
+            _skip.SetActive(false); _done = true;
+            yield return Fade(0, 1, 0.4f); // sting already baked -> no duplicate Tag card
+            CleanupVideo();
+            SceneManager.LoadScene(nextScene);
+        }
+
+        void CleanupVideo()
+        {
+            if (_vp) { _vp.Stop(); Destroy(_vp); _vp = null; }
+            if (_video) { Destroy(_video.gameObject); _video = null; }
+            if (_rt) { _rt.Release(); Destroy(_rt); _rt = null; }
+        }
+
+        void OnDestroy() { CleanupVideo(); }
 
         void Update()
         {
             if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.JoystickButton0)) _next = true;
-            if (Input.GetKeyDown(KeyCode.Escape) && _skip && _skip.activeSelf) Skip();
+            if ((Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Backspace) || Input.GetKeyDown(KeyCode.Tab) || Input.GetKeyDown(KeyCode.JoystickButton7)) && _skip && _skip.activeSelf) Skip();
             if (_bolt) { var k = 0.55f + 0.45f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 9f)) * (Random.value > 0.04f ? 1f : 0.15f); _bolt.color = GMUIKit.Pink * k; }
         }
 
@@ -108,6 +181,7 @@ namespace GenerationMayhem.UI
         IEnumerator Tag()
         {
             _skip.SetActive(false); _done = true;
+            CleanupVideo();
             _stage.gameObject.SetActive(false); _title.text = ""; _caption.text = "";
             var tag = GMUIKit.Label(GMUIKit.Rect(_fade.transform.parent, "Tagline", new Vector2(0, 0.4f), new Vector2(1, 0.6f)), Tagline, 96, GMUIKit.Pink);
             tag.color = new Color(1, 0.12f, 0.6f, 0);
