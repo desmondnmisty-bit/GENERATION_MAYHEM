@@ -98,3 +98,27 @@ Open index.html in Chrome/Edge (or run `npm run dev` in web/).
 
 -------------------------------------------------------------------
 v5 (2026-10-25): pace pass - player top speed 8 / accel 14.5 (was 11.5/21), chase camera farther/higher, slower Vipers/Falcon, colored ground rings + longer attack telegraphs. Vixen Soft face + mask vent glow (partner-safe). Early look/feel prototype; not the fundable 15-min slice, no co-op, not Steam-ready.
+
+-------------------------------------------------------------------
+v6 TEST BUILD (2026-10-31): scream / pace / wheels / Apex Overdrive arena
+-------------------------------------------------------------------
+INTERNAL TEST BUILD ONLY — NOT for darklogicstudios.store. Store publish held.
+
+- SONIC SCREAM: the RMB/K sonic cone is now clearly labeled SONIC SCREAM, with
+  its own clickable/tappable HUD button (bottom-right ability slot), pink blast
+  VFX and a proper scream+cone SFX layer. Punch and Shatter-Slingshot unchanged.
+- PACE: player top speed 6.8 (was 8), accel 11 (was 14.5), carve turn rate
+  lowered to 5.2 -> 2.4 rad/s with speed (~298 -> ~138 deg/s; was 7.5 -> 3.6).
+  All below the Unity PR #1 pace (move 8.4 / accel 20 / turn 160).
+- WAR RIG WHEELS: vixen.glb replaced with the wheel-fix export (separate
+  unskinned VIXEN_WarRig_Wheel_L/_R meshes, axle origin, r=0.276). The game now
+  spins the wheel nodes on local X by travel distance so they roll with the
+  skate. Old GLB backed up at src/assets/models/vixen_pre_wheelfix_1030.glb.
+- DOCKYARD (Apex Overdrive pass, matching Misty's arena art): curved banked
+  ring track around the dock with glowing amber guard rail + purple neon inner
+  edge on pylons over the water; catwalks + stairs along the west wall; three
+  raised circular purple-neon pads with ramps; purple neon edge lines; rain +
+  wet reflective asphalt; purple storm vortex in the sky (cheap spiral planes +
+  funnel + lightning flicker); grass patches and cracked ground with green
+  glow; pink hazard pad in berth 2 that sparks and zaps like the puddles.
+  Everything procedural/in-file — no new downloads, props well under 5 MB.
