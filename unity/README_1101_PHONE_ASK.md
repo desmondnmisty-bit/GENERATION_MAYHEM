@@ -2,25 +2,29 @@
 
 Goal: laptop Unity (CityBlock_Slice / Dock Contracts) lines up with the browser build.
 `web/` is intentionally untouched; the cold-open intro / captions / music are NOT touched
-(not greenlit). Pace numbers are PROVISIONAL from Idea Guy — lock when he ships finals.
+(not greenlit). Pace numbers are LOCKED — Idea Guy finals, web v7 (PR #4, gh-pages
+1e54bb2): https://desmondnmisty-bit.github.io/GENERATION_MAYHEM/?v=7-1e54bb2
 
 This repo carries only the Phase0 script drop (`unity/Assets/Scripts`); the CityBlock /
 Dockyard scenes, player prefab, Sonic scream HUD and wheel meshes live in the full project
 on the laptop. Each item below says what landed here and what to run there.
 
-## 1. Pace — slower, skill-readable, not luck
+## 1. Pace — slower, skill-readable, not luck (LOCKED, web v7)
 
-- `Player/SkatePawnController.cs` defaults: maxSpeed **6.8**, accel **11.5**, turnRateDeg
-  **120** (−25% from 160), Shift sprint ×1.4 kept (top 9.52).
-- `Match/MatchDirector.cs`: new `enemyChaseSpeedScale = 0.78` (−22%), applied to every
-  Viper's NavMeshAgent at spawn.
+- `Player/SkatePawnController.cs`: maxSpeed **6.8**, accel **11**, turn **lerp 5.2 → 2.4
+  rad/s** by speed/MAX (snap 9 rad/s under 2.5 — replaces the old flat `turnRateDeg`),
+  overspeed burst **cap MAX+3.2, bleeding 12/s** above MAX (kicker / rail / boost headroom;
+  applies grounded and in air). Shift sprint neutralized to **×1.0** — web v7 has no sprint
+  gear (Shift is brake there); the +3.2 burst cap is the only over-MAX headroom.
+- `Match/MatchDirector.cs`: vipers spawn at agent speed **4.8**, acceleration **9.5**
+  (`viperChaseSpeed` / `viperChaseAccel`).
 - Because **Inspector overrides win over script defaults**, run
   `Generation Mayhem → Pace → Apply 1101 Pace Defaults (open scenes + prefabs)` with
-  CityBlock_Slice / Dockyard open. It stamps the values on every SkatePawnController /
-  MatchDirector in the open scenes and in all prefabs, so the Dock Contracts player path
-  actually uses them. `Audit 1101 Pace (log only)` just reports drift.
-- TODO (laptop): if `ViperGrunt.cs` re-sets `agent.speed` in charge/flee states, scale those
-  tables at source too.
+  CityBlock_Slice / Dockyard open. `Audit 1101 Pace (log only)` just reports drift.
+- TODO (laptop — scripts not in this repo drop, locked numbers): rebase ViperGrunt
+  per-state tables on **4.8**; enforcers **3.6** (accel **7**); boss **4.7** (accel
+  **9.5**), dash **24**; melee lunges **8 / 6.5**; enemy bolts **13**; Kailee combat
+  follow **9**.
 
 ## 2. Wheels — axle spin, not a solid blob
 
@@ -70,6 +74,7 @@ on the laptop. Each item below says what landed here and what to run there.
 2. Run `Generation Mayhem → Pace → Apply 1101 Pace Defaults`, check the console summary.
 3. Add `SkateWheelSpinner` to the player prefab (wheels/radius), `GMHudCompactor` to the
    CityBlock / Dockyard scene.
-4. Play CityBlock_Slice (or Dockyard): base skate should feel ~6.8 with Shift a clear fast
-   gear; wheels visibly roll and stop with you; Vipers noticeably lazier on the chase;
+4. Play CityBlock_Slice (or Dockyard): base skate tops out at 6.8 (no sprint gear — a
+   kicker/rail burst carries up to +3.2 and bleeds off); steering is wider at speed and
+   snappy near standstill; wheels visibly roll and stop with you; Vipers chase at 4.8;
    HUD + scream UI small but phone-readable; banter still fires on crane drops / downs.
