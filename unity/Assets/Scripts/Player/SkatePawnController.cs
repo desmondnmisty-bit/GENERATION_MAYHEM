@@ -13,13 +13,32 @@ namespace GenerationMayhem.Player
     public class SkatePawnController : MonoBehaviour
     {
         [Header("Move")]
-        [SerializeField] float maxSpeed = 8.4f;          // PACE 1029: was 12 (-30%)
-        [SerializeField] float accel = 20f;              // PACE 1029: was 28 (-29%)
+        // PACE LOCK 1101 — Idea Guy finals, web v7 (PR #4, gh-pages 1e54bb2):
+        //   MAX 6.8 · ACC 11 · overspeed burst cap MAX+3.2 (bleeds 12/s above MAX)
+        //   turn lerp 5.2 -> 2.4 rad/s by speed fraction (snap 9 rad/s under speed 2.5).
+        // Inspector overrides win over these defaults: run
+        // "Generation Mayhem/Pace/Apply 1101 Pace Defaults" (Editor/GMPaceDefaults.cs) after pulling.
+        [SerializeField] float maxSpeed = 6.8f;          // PACE LOCK 1101
+        [SerializeField] float accel = 11f;              // PACE LOCK 1101: was 11.5 provisional
         [SerializeField] float brakeDecel = 36f;
         [SerializeField] float coastDecel = 6f;
-        [SerializeField] float turnRateDeg = 160f;       // PACE 1029: was 220 (-27%)
-        [Tooltip("Hold Shift = fast gear. 8.4 x 1.4 = 11.76, ~old 12 top speed.")]
-        [SerializeField] float sprintMultiplier = 1.4f;
+        [Tooltip("PACE LOCK 1101: web v7 has no sprint gear (Shift brakes there); keep 1. Burst headroom is the +3.2 overspeed cap.")]
+        [SerializeField] float sprintMultiplier = 1f;
+
+        [Header("Turn (PACE LOCK 1101: rad/s lerped by speed, replaces turnRateDeg)")]
+        [Tooltip("Turn rate at standstill, radians/sec (web v7: 5.2).")]
+        [SerializeField] float turnRadSlow = 5.2f;
+        [Tooltip("Turn rate at MAX speed, radians/sec (web v7: 2.4).")]
+        [SerializeField] float turnRadAtMax = 2.4f;
+        [Tooltip("Below this speed, pivot snappily instead (web v7: 9 rad/s under 2.5).")]
+        [SerializeField] float turnSnapSpeed = 2.5f;
+        [SerializeField] float turnSnapRad = 9f;
+
+        [Header("Overspeed (PACE LOCK 1101: kicker / rail / boost headroom)")]
+        [Tooltip("Hard cap above MAX while bursting (web v7: +3.2).")]
+        [SerializeField] float overspeedBurst = 3.2f;
+        [Tooltip("Speed bleed per second while above MAX (web v7: 12).")]
+        [SerializeField] float overspeedDecay = 12f;
         [SerializeField] float airControl = 0.35f;
 
         [Header("Ground / Gravity")]
@@ -57,9 +76,22 @@ namespace GenerationMayhem.Player
         public float SpeedMultiplier { get; set; } = 1f;
         /// <summary>Phase 0 weapon upgrades (Chaos Wheels pace). Multiplies top speed.</summary>
         public float UpgradeSpeedScale { get; set; } = 1f;
-        /// <summary>PACE 1029: Shift = fast gear.</summary>
+        /// <summary>PACE LOCK 1101: sprintMultiplier defaults to 1 (web v7 has no sprint gear).</summary>
         public bool Sprinting => !InputLocked && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
         float GearScale => Sprinting ? sprintMultiplier : 1f;
+        /// <summary>PACE LOCK 1101: turn rate in deg/s — 9 rad/s under speed 2.5, else lerp 5.2→2.4 rad/s by speed/MAX (web v7).</summary>
+        float TurnRateDegNow
+        {
+            get
+            {
+                float speed = PlanarSpeed;
+                float max = Mathf.Max(0.01f, maxSpeed * UpgradeSpeedScale);
+                float radPerSec = speed < turnSnapSpeed
+                    ? turnSnapRad
+                    : Mathf.Lerp(turnRadSlow, turnRadAtMax, Mathf.Clamp01(speed / max));
+                return radPerSec * Mathf.Rad2Deg;
+            }
+        }
         public float MaxSpeed => maxSpeed * UpgradeSpeedScale;
         public float Gravity => gravity;
         public float VerticalSpeed => _verticalSpeed;
@@ -144,20 +176,40 @@ namespace GenerationMayhem.Player
         void ApplyGroundedMove(Vector3 wishDir, bool hasInput, float dt)
         {
             Vector3 planar = PlanarVelocity;
+            float effMax = maxSpeed * GearScale * UpgradeSpeedScale * SpeedMultiplier;
 
             if (hasInput && wishDir.sqrMagnitude > 0.001f)
             {
-                // Accelerate toward wish; steer facing.
-                planar = Vector3.MoveTowards(planar, wishDir * maxSpeed * GearScale * UpgradeSpeedScale * SpeedMultiplier, accel * TractionMultiplier * dt);
+                float speed = planar.magnitude;
+                float turnScale = Mathf.Max(0.2f, TractionMultiplier);
+                if (speed > effMax + 0.01f)
+                {
+                    // PACE LOCK 1101 overspeed (kicker / rail / boost): keep the burst rolling,
+                    // steer the velocity, bleed 12/s back toward MAX, hard cap MAX+3.2 (web v7).
+                    Vector3 dir = Vector3.RotateTowards(planar.normalized, wishDir,
+                        TurnRateDegNow * Mathf.Deg2Rad * turnScale * dt, 0f);
+                    float newSpeed = Mathf.Min(Mathf.Max(effMax, speed - overspeedDecay * dt), effMax + overspeedBurst);
+                    planar = dir * newSpeed;
+                }
+                else
+                {
+                    // Accelerate toward wish.
+                    planar = Vector3.MoveTowards(planar, wishDir * effMax, accel * TractionMultiplier * dt);
+                }
+                // Steer facing (PACE LOCK 1101: speed-lerped rad/s, not a flat deg/s).
                 Quaternion targetRot = Quaternion.LookRotation(wishDir, Vector3.up);
                 transform.rotation = Quaternion.RotateTowards(
-                    transform.rotation, targetRot, turnRateDeg * Mathf.Max(0.2f, TractionMultiplier) * dt);
+                    transform.rotation, targetRot, TurnRateDegNow * turnScale * dt);
             }
             else
             {
                 // Coast / brake feel — Space = hard brake stub.
                 float decel = (!InputLocked && Input.GetKey(KeyCode.Space)) ? brakeDecel : coastDecel;
                 planar = Vector3.MoveTowards(planar, Vector3.zero, decel * TractionMultiplier * dt);
+                // Overspeed cap still applies while coasting.
+                float speed = planar.magnitude;
+                float cap = effMax + overspeedBurst;
+                if (speed > cap) planar *= cap / speed;
             }
 
             _velocity.x = planar.x;
@@ -171,8 +223,10 @@ namespace GenerationMayhem.Player
             Vector3 planar = PlanarVelocity;
             planar += wishDir * (accel * airControl * dt);
             float mag = planar.magnitude;
-            if (mag > maxSpeed * UpgradeSpeedScale)
-                planar *= maxSpeed * UpgradeSpeedScale / mag;
+            // PACE LOCK 1101: air cap leaves the +3.2 burst headroom so kicker launches aren't chopped.
+            float cap = maxSpeed * UpgradeSpeedScale + overspeedBurst;
+            if (mag > cap)
+                planar *= cap / mag;
             _velocity.x = planar.x;
             _velocity.z = planar.z;
         }

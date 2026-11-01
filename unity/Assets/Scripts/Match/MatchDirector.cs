@@ -50,6 +50,14 @@ namespace GenerationMayhem.Match
         [Header("Tuning")]
         [Range(0f, 1f)] public float startingSynergy = 0.5f;
         public float craneP1Every = 25f, craneP2Every = 18f, craneP3Every = 20f;
+        // PACE LOCK 1101 — Idea Guy finals, web v7 (PR #4, gh-pages 1e54bb2): vipers 4.8 (accel 9.5).
+        // Applied to the NavMeshAgent at spawn. If ViperGrunt re-sets agent.speed in its own states
+        // (charge, flee), rebase those tables on 4.8 in ViperGrunt.cs too. Locked values for the
+        // laptop-only scripts (enforcers, boss, bolts, Kailee) are in README_PACE.md / GMPaceDefaults.
+        [Tooltip("PACE LOCK 1101: Viper NavMeshAgent speed (web v7: 4.8).")]
+        public float viperChaseSpeed = 4.8f;
+        [Tooltip("PACE LOCK 1101: Viper NavMeshAgent acceleration (web v7: 9.5).")]
+        public float viperChaseAccel = 9.5f;
 
         public MatchState State { get; private set; } = MatchState.PreMatch;
         public Health Kailee => kailee;
@@ -254,7 +262,7 @@ namespace GenerationMayhem.Match
             go.AddComponent<ShoveState>();
             var agent = go.AddComponent<NavMeshAgent>();
             agent.radius = col.radius; agent.height = col.height;
-            agent.acceleration = 30f; agent.angularSpeed = 540f; agent.stoppingDistance = 0.2f;
+            agent.acceleration = viperChaseAccel; agent.angularSpeed = 540f; agent.stoppingDistance = 0.2f; // PACE LOCK 1101: accel was 30
             agent.obstacleAvoidanceType = ObstacleAvoidanceType.LowQualityObstacleAvoidance;
             CityBlockNavBootstrap.ConfigureAgent(agent);
             if (!agent.isOnNavMesh) agent.Warp(at);
@@ -306,7 +314,7 @@ namespace GenerationMayhem.Match
 
             var g = go.AddComponent<ViperGrunt>();
             g.Configure(kind);
-            agent.speed = g.speed;
+            agent.speed = viperChaseSpeed; // PACE LOCK 1101: web v7 vipers 4.8 flat (was g.speed per kind)
             return g;
         }
 
