@@ -50,6 +50,11 @@ namespace GenerationMayhem.Match
         [Header("Tuning")]
         [Range(0f, 1f)] public float startingSynergy = 0.5f;
         public float craneP1Every = 25f, craneP2Every = 18f, craneP3Every = 20f;
+        // PACE 1101 (provisional from Idea Guy): enemy chase speeds -20..25% to match web build.
+        // Applied to the NavMeshAgent at spawn. If ViperGrunt re-sets agent.speed in its own states
+        // (charge, flee), scale those tables at source in ViperGrunt.cs too — see README_PACE.md.
+        [Tooltip("PACE 1101: multiplies Viper NavMeshAgent speed at spawn (0.78 = -22%).")]
+        [Range(0.5f, 1f)] public float enemyChaseSpeedScale = 0.78f;
 
         public MatchState State { get; private set; } = MatchState.PreMatch;
         public Health Kailee => kailee;
@@ -306,7 +311,7 @@ namespace GenerationMayhem.Match
 
             var g = go.AddComponent<ViperGrunt>();
             g.Configure(kind);
-            agent.speed = g.speed;
+            agent.speed = g.speed * enemyChaseSpeedScale; // PACE 1101: chase -22%
             return g;
         }
 

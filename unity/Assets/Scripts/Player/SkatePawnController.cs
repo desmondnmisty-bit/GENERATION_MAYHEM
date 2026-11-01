@@ -13,12 +13,15 @@ namespace GenerationMayhem.Player
     public class SkatePawnController : MonoBehaviour
     {
         [Header("Move")]
-        [SerializeField] float maxSpeed = 8.4f;          // PACE 1029: was 12 (-30%)
-        [SerializeField] float accel = 20f;              // PACE 1029: was 28 (-29%)
+        // PACE 1101 — match web build. PROVISIONAL numbers from Idea Guy; lock when he ships finals.
+        // Inspector overrides win over these defaults: run
+        // "Generation Mayhem/Pace/Apply 1101 Pace Defaults" (Editor/GMPaceDefaults.cs) after pulling.
+        [SerializeField] float maxSpeed = 6.8f;          // PACE 1101: was 8.4 (1029), 12 (orig)
+        [SerializeField] float accel = 11.5f;            // PACE 1101: was 20 (1029), 28 (orig)
         [SerializeField] float brakeDecel = 36f;
         [SerializeField] float coastDecel = 6f;
-        [SerializeField] float turnRateDeg = 160f;       // PACE 1029: was 220 (-27%)
-        [Tooltip("Hold Shift = fast gear. 8.4 x 1.4 = 11.76, ~old 12 top speed.")]
+        [SerializeField] float turnRateDeg = 120f;       // PACE 1101: was 160 (1029), -25%
+        [Tooltip("Hold Shift = fast gear. 6.8 x 1.4 = 9.52 top speed.")]
         [SerializeField] float sprintMultiplier = 1.4f;
         [SerializeField] float airControl = 0.35f;
 
