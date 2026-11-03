@@ -143,7 +143,19 @@ export class Sfx {
   /** Duck music under dialogue so she can HEAR the ladies. */
   duck(on: boolean) { if (this.musicBus && this.ctx) this.musicBus.gain.setTargetAtTime(on ? 0.1 : 0.28, this.t, 0.15); }
   /** Stub VO: browser TTS per speaker until real clips exist. Returns a promise that resolves when the line ends. */
+  private voMan: Record<string, Record<string, string>> | null = null; private voLoad: Promise<void> | null = null;
+  private voKey(line: string) { return line.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().split(/\s+/).slice(0, 6).join('_'); }
+  /** Soft VO loader: real clips from public/vo/manifest.json (built from art/vo/<name>/*.mp3) beat TTS. */
+  private async realVO(speaker: string, line: string): Promise<boolean> {
+    if (!this.voLoad) this.voLoad = fetch('vo/manifest.json').then((r) => r.ok ? r.json() : {}).then((j) => { this.voMan = j; }).catch(() => { this.voMan = {}; });
+    await this.voLoad; const m = this.voMan?.[speaker.toUpperCase()]; if (!m || this.muted) return false;
+    const f = m[this.voKey(line)]; if (!f) return false;
+    return new Promise((res) => { const a = new Audio('vo/' + f); a.volume = 1; this.duck(true); const fin = (ok: boolean) => { this.duck(false); res(ok); }; a.onended = () => fin(true); a.onerror = () => fin(false); a.play().catch(() => fin(false)); });
+  }
   say(speaker: string, line: string): Promise<void> {
+    return this.realVO(speaker, line).then((ok) => ok ? undefined : this.ttsSay(speaker, line));
+  }
+  ttsSay(speaker: string, line: string): Promise<void> {
     return new Promise((res) => {
       const ss = (window as any).speechSynthesis as SpeechSynthesis | undefined;
       if (!ss || this.muted) { setTimeout(res, 400 + line.length * 55); return; }

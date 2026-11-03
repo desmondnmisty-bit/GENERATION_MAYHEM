@@ -107,7 +107,7 @@ export class Actor {
     let fl = 0; this.grindBox = null;
     for (const b of boxes) {
       if (!b.active || !b.ride) continue;
-      const m = b.ride === 'rail' ? 0.35 : 0.05;
+      const m = b.ride === 'rail' ? (this.grounded ? 0.45 : 1.1) : 0.05; // Soft rail magnet: wide catch while airborne
       if (this.pos.x < b.minX - m || this.pos.x > b.maxX + m || this.pos.z < b.minZ || this.pos.z > b.maxZ) continue;
       const top = boxTop(b, this.pos.z);
       if (this.y >= top - (b.ride === 'ramp' ? 0.7 : 0.3) && top > fl) { fl = top; this.grindBox = b.ride === 'rail' ? b : null; }

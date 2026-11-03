@@ -147,7 +147,7 @@ export class Game {
     for (const al of this.allies) { al.a.hp = al.a.maxHp; Object.assign(al, { downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, recoverT: 0 }); }
     Object.assign(this.k, { downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, recoverT: 0, slideCd: 4, slideT: 0, slideHits: 0, slideTgt: null });
     Object.assign(this.p, { combo: 0, comboT: 0, atkT: 0, coneCd: 0, invuln: 0 });
-    this.stats = { time: 0, kos: 0, slingKos: 0, splashKos: 0, maxCombo: 0, slings: 0, combo: 0, comboT: 0 };
+    this.stats = { time: 0, kos: 0, slingKos: 0, splashKos: 0, maxCombo: 0, slings: 0, combo: 0, comboT: 0 }; this.trickScore = 0; this.trickChain = 0;
     this.placeHeroes(-4);
     this.comsCd = {}; this.lowHpCd = 0;
     setTimeout(() => this.coms('COM_KAM_01'), 1500); setTimeout(() => this.coms('COM_LIL_01'), 5600);
@@ -175,6 +175,12 @@ export class Game {
 
   // ------------------------------------------------------------------ land mines (Misty 11-03)
   private grinding = false;
+  private grindT = 0; private airT = 0; private airFromRamp = false; trickScore = 0; private trickChain = 0; private trickChainT = 0;
+  private trick(name: string, pts: number) {
+    this.trickChain++; this.trickChainT = 3; const mult = Math.min(5, this.trickChain); const got = pts * mult; this.trickScore += got;
+    this.stats.combo++; this.stats.comboT = 2.5; this.stats.maxCombo = Math.max(this.stats.maxCombo, this.stats.combo);
+    this.dmg.spawn(tmp.copy(this.vixen.pos).setY(this.vixen.y + 2.8), `${name} +${got}${mult > 1 ? ` x${mult}` : ''}`, 'heal');
+  }
   mines: { x: number; z: number; mesh: THREE.Group; armT: number; live: boolean }[] = [];
   private craters: THREE.Mesh[] = [];
   private spawnMines() {
@@ -625,12 +631,31 @@ export class Game {
     }
     if (!sling && inp.hit('Mouse2', 'KeyK') && p.coneCd <= 0) this.sonicCone();
     if (inp.hit('KeyE', 'KeyL')) this.tryShatter();
+    // Soft rail hop assist: in the air near an orange rail, drift onto it
+    if (!v.grounded && !sling) {
+      let best: any = null, bd = 2.6;
+      for (const b of this.world.colliders) { if (b.ride !== 'rail' || !b.active || v.pos.z < b.minZ - 1.5 || v.pos.z > b.maxZ) continue; const cx = (b.minX + b.maxX) / 2, d = Math.abs(cx - v.pos.x); if (d < bd && v.y > b.h - 0.4) { bd = d; best = cx; } }
+      if (best !== null) v.pos.x += (best - v.pos.x) * Math.min(1, dt * 6);
+    }
     if (!sling && this.sling.phase !== 'land') v.integrate(dt, this.world.colliders);
     // GRIND (Soft Hyperdrive rails): lock to the bar, keep speed up, sparks
     if (v.grindBox && v.grounded) {
       const gb = v.grindBox, cx = (gb.minX + gb.maxX) / 2; v.pos.x += (cx - v.pos.x) * Math.min(1, dt * 12);
-      p.fwdSpeed = Math.max(p.fwdSpeed, 7.5); if (!this.grinding) { this.grinding = true; sfx.hop(); this.stats.combo++; this.stats.comboT = 2; }
-    } else this.grinding = false;
+      p.fwdSpeed = Math.max(p.fwdSpeed, 7.5); if (!this.grinding) { this.grinding = true; this.grindT = 0; sfx.hop(); }
+      this.grindT += dt;
+      // grind sparks: hot orange/yellow showers off the trucks
+      for (let i = 0; i < 3; i++) this.particles.emit(tmp3.set(v.pos.x + (Math.random() - 0.5) * 0.3, v.y + 0.05, v.pos.z), tmp2.set((Math.random() - 0.5) * 3, 1 + Math.random() * 2.5, -Math.cos(v.heading) * (1 + Math.random() * 2)), Math.random() < 0.5 ? COL.org : COL.yel, 0.07, 0.35, -12);
+    } else {
+      if (this.grinding) { const pts = Math.round(50 + this.grindT * 120); this.trick(this.grindT > 1.5 ? 'LONG GRIND' : 'GRIND', pts); }
+      this.grinding = false;
+    }
+    // air tracking (kickers / funbox lands)
+    if (!v.grounded) { if (this.airT === 0) this.airFromRamp = v.vy > 7.3 || v.y > 0.6; this.airT += dt; }
+    else if (this.airT > 0) {
+      if (!this.grinding && this.airT > 0.55) { if (v.y > 0.3) this.trick('FUNBOX LAND', 150); else this.trick(this.airFromRamp ? 'KICKER AIR' : 'AIR', Math.round(this.airT * 160)); }
+      this.airT = 0;
+    }
+    if (this.trickChainT > 0) { this.trickChainT -= dt; if (this.trickChainT <= 0) this.trickChain = 0; }
     // water
     if (v.overWater && v.y < 0.2) this.fallInWater(v);
     else if (v.grounded && v.pos.x < X_EDGE - 1.2) p.lastSafe.copy(v.pos);
@@ -1723,7 +1748,7 @@ export class Game {
     (this.hud['ab-cone'].querySelector('i') as HTMLElement).style.transform = `scaleX(${(this.p.coneCd / 1.5).toFixed(2)})`;
     this.setT('wave-label', (this.level === 2 ? 'L2 · ' : '') + (this.gateOpen ? 'EXTRACT' : `WAVE ${this.wave + 1}/4`));
     const alive = this.enemies.filter((e) => e.state !== 'dead').length;
-    this.setT('enemy-count', this.waveActive ? `HOSTILES ${alive}${this.stats.combo > 2 ? `  ·  COMBO x${this.stats.combo}` : ''}` : this.waveCleared ? 'ALL CLEAR' : 'STAND BY');
+    this.setT('enemy-count', this.waveActive ? `HOSTILES ${alive}${this.stats.combo > 2 ? `  ·  COMBO x${this.stats.combo}` : ''}${this.trickScore ? `  ·  TRICKS ${this.trickScore}` : ''}` : this.waveCleared ? 'ALL CLEAR' : 'STAND BY');
     const boss = this.enemies.find((e) => e.def.kind === 'falcon' && e.state !== 'dead');
     if (boss) this.setW('hp-boss', boss.hp / boss.maxHp);
   }
