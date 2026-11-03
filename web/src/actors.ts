@@ -251,7 +251,8 @@ export class Enemy extends Actor {
     hullMat.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normalize(objectNormal) * 0.022;'); };
     const hulls: THREE.SkinnedMesh[] = [];
     this.cm.model.traverse((o) => { const m = o as THREE.SkinnedMesh; if (m.isSkinnedMesh && m.geometry.attributes.normal) { const h = new THREE.SkinnedMesh(m.geometry, hullMat); h.bind(m.skeleton, m.bindMatrix); h.frustumCulled = false; hulls.push(h); (m.parent ?? this.cm.model).add(h); } });
-    const rim = new THREE.PointLight(rc, def.kind === 'falcon' ? 2 : 6, 4.5, 2); rim.position.set(0, 1.6, 0); this.cm.root.add(rim);
+    // PERF (11-03 freeze fix): no per-enemy PointLight. Adding/removing lights at spawn/death changed the scene light count and forced
+    // every lit material to recompile (3-4 s freezes on each wave). Threat ring + inverted hull carry the readability instead.
     this.hp = this.maxHp = def.hp;
     this.radius = def.radius;
     this.pos.copy(pos);

@@ -150,7 +150,7 @@ export class Sfx {
     if (!this.voLoad) this.voLoad = fetch('vo/manifest.json').then((r) => r.ok ? r.json() : {}).then((j) => { this.voMan = j; }).catch(() => { this.voMan = {}; });
     await this.voLoad; const m = this.voMan?.[speaker.toUpperCase()]; if (!m || this.muted) return false;
     const f = m[this.voKey(line)]; if (!f) return false;
-    return new Promise((res) => { const a = new Audio('vo/' + f); a.volume = 1; this.duck(true); const fin = (ok: boolean) => { this.duck(false); res(ok); }; a.onended = () => fin(true); a.onerror = () => fin(false); a.play().catch(() => fin(false)); });
+    return new Promise((res) => { const a = new Audio('vo/' + f); a.volume = 1; this.duck(true); let dn = false; const fin = (ok: boolean) => { if (dn) return; dn = true; this.duck(false); res(ok); }; setTimeout(() => { a.pause(); fin(true); }, 12000); a.onended = () => fin(true); a.onerror = () => fin(false); a.play().catch(() => fin(false)); });
   }
   say(speaker: string, line: string): Promise<void> {
     return this.realVO(speaker, line).then((ok) => ok ? undefined : this.ttsSay(speaker, line));
@@ -169,7 +169,7 @@ export class Sfx {
       u.pitch = Math.min(2, pitch); u.rate = rate; u.volume = 1;
       let done = false; const fin = () => { if (done) return; done = true; this.duck(false); res(); };
       u.onend = fin; u.onerror = fin; setTimeout(fin, 1500 + line.length * 120);
-      this.duck(true); ss.speak(u);
+      this.duck(true); if (ss.speaking || ss.pending) ss.cancel(); ss.speak(u);
     });
   }
   stopVoice() { try { (window as any).speechSynthesis?.cancel(); } catch { /* */ } }

@@ -2,7 +2,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import handgunUrl from './assets/models/vixen_handgun.glb?url';
 import kaileeGunUrl from './assets/models/kailee_40cal.glb?url';
 import * as THREE from 'three';
-import { Actor, Enemy, ProjectilePool, angleDiff, angleLerp, dirFromYaw, type HitOpts , ENEMY_FINISHERS } from './actors';
+import { Actor, Enemy, ProjectilePool, angleDiff, angleLerp, dirFromYaw, type HitOpts , ENEMY_FINISHERS, ENEMY_DEFS } from './actors';
 import { Assets } from './assets';
 import { sfx } from './audio';
 import { Beam, DamageNumbers, Particles, Transients } from './fx';
@@ -64,7 +64,7 @@ export class Game {
   // Mom's Frenzy (the 'chaos' meter, renamed Misty 11-03) + RAGE skate power + level
   level: 1 | 2 = 1; frenzyReason = ''; frenzyReasonT = 0; rageT = 0; rageCd = 0; lastGirlHurtT = -99; viperSeq = 0;
   private voiceQ: Promise<void> = Promise.resolve(); voiceGen = 0;
-  hushVoice() { this.voiceGen++; this.voiceQ = Promise.resolve(); sfx.stopVoice(); }
+  hushVoice() { this.voiceGen++; this.voicePending = 0; this.voiceQ = Promise.resolve(); sfx.stopVoice(); }
   private gatling: THREE.Group | null = null; private seekerCd = 3; private kLabelT = 0;
   get waves() { return this.level === 2 ? WAVES_L2 : WAVES; }
   zoneName(i: number) { return this.level === 2 ? L2_ZONE_NAMES[i] : ZONES[i].name; }
@@ -238,15 +238,20 @@ export class Game {
   // ------------------------------------------------------------------ Kamyrn + Lili coms (DOCK_DIALOGUE_PACK §C, text radio — no VO clips exist yet)
   private comsT = 0; private comsCd: Record<string, number> = {}; private lowHpCd = 0;
   /** Show a coms line AND speak it (stub TTS until real VO clips exist), queued so lines never talk over each other. */
+  private voicePending = 0;
   comsLine(who: string, line: string) {
     const gen = this.voiceGen;
+    // PERF/soft-lock fix: cap the radio queue so lines don't stack up for minutes mid-fight (stale VO = "glitchy")
+    if (this.voicePending >= 2) return;
+    this.voicePending++;
+    const t0 = this.time;
     this.voiceQ = this.voiceQ.then(() => {
-      if (gen !== this.voiceGen || this.state === 'cutscene') return;
+      if (gen !== this.voiceGen || this.state === 'cutscene' || this.time - t0 > 8) return;
       const el = document.getElementById('coms');
       if (el) { el.className = who === 'LILI' ? 'lili' : who === 'PAYTON' ? 'payton' : who === 'VIXEN' ? 'vixen' : ''; el.innerHTML = `<b>📻 ${who}:</b>${line}`; el.style.opacity = '1'; }
       this.comsT = 99; sfx.radio();
       return sfx.say(who, line).then(() => { this.comsT = 1.2; });
-    });
+    }).catch(() => {}).finally(() => { this.voicePending = Math.max(0, this.voicePending - 1); });
   }
   coms(id: string) {
     const L: Record<string, [string, string]> = {
@@ -644,7 +649,8 @@ export class Game {
       p.fwdSpeed = Math.max(p.fwdSpeed, 7.5); if (!this.grinding) { this.grinding = true; this.grindT = 0; sfx.hop(); }
       this.grindT += dt;
       // grind sparks: hot orange/yellow showers off the trucks
-      for (let i = 0; i < 3; i++) this.particles.emit(tmp3.set(v.pos.x + (Math.random() - 0.5) * 0.3, v.y + 0.05, v.pos.z), tmp2.set((Math.random() - 0.5) * 3, 1 + Math.random() * 2.5, -Math.cos(v.heading) * (1 + Math.random() * 2)), Math.random() < 0.5 ? COL.org : COL.yel, 0.07, 0.35, -12);
+      this.sparkAcc += dt * 60; const nSp = Math.min(3, Math.floor(this.sparkAcc)); this.sparkAcc -= nSp;
+      for (let i = 0; i < nSp; i++) this.particles.emit(tmp3.set(v.pos.x + (Math.random() - 0.5) * 0.3, v.y + 0.05, v.pos.z), tmp2.set((Math.random() - 0.5) * 3, 1 + Math.random() * 2.5, -Math.cos(v.heading) * (1 + Math.random() * 2)), Math.random() < 0.5 ? COL.org : COL.yel, 0.07, 0.35, -12);
     } else {
       if (this.grinding) { const pts = Math.round(50 + this.grindT * 120); this.trick(this.grindT > 1.5 ? 'LONG GRIND' : 'GRIND', pts); }
       this.grinding = false;
@@ -667,7 +673,7 @@ export class Game {
       else v.anim.setBase('Idle_Skate');
     }
     // skate sparks at speed
-    if (v.grounded && v.speed > 6.5 && Math.random() < 0.4) this.particles.emit(tmp3.copy(v.pos).setY(0.05), new THREE.Vector3((Math.random() - 0.5), 0.8, (Math.random() - 0.5)), COL.mag, 0.08, 0.25, -4);
+    if (v.grounded && v.speed > 6.5 && Math.random() < 0.4) this.particles.emit(tmp3.copy(v.pos).setY(0.05), tmp2.set((Math.random() - 0.5), 0.8, (Math.random() - 0.5)), COL.mag, 0.08, 0.25, -4);
     // aim ring
     const ad = dirFromYaw(p.aimYaw, tmp2);
     this.aimRing.position.set(v.pos.x + ad.x * 3.2, 0.05, v.pos.z + ad.z * 3.2);
@@ -1174,7 +1180,8 @@ export class Game {
     const sh = new THREE.Shape(); sh.moveTo(-0.7, 0); sh.lineTo(0, 0.55); sh.lineTo(0.7, 0); sh.lineTo(0.7, 0.28); sh.lineTo(0, 0.83); sh.lineTo(-0.7, 0.28); sh.closePath();
     const chevGeo = new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2);
     for (let i = 0; i < 6; i++) { const c = new THREE.Mesh(chevGeo, mat()); c.name = 'chev' + i; c.position.y = 0.06; lane.add(c); }
-    const eye = new THREE.PointLight(col, 0, 6, 2); eye.name = 'eye'; g.add(eye);
+    // PERF: glow sprite, not a PointLight (light-count change = full shader recompile freeze)
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), mat()); eye.name = 'eye'; g.add(eye);
     this.scene.add(g); e.finisherFx = g; return g;
   }
   private pounceWindupFx(e: Enemy, t: Actor, dt: number) {
@@ -1196,7 +1203,7 @@ export class Game {
       c.position.set(0, 0.06, d - f * Math.max(0, d - 1.3));
       ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = (0.35 + 0.6 * Math.sin(f * Math.PI)) * (0.6 + k * 0.4);
     });
-    const eye = g.getObjectByName('eye') as THREE.PointLight; eye.position.set(e.pos.x - g.position.x, 1.6, e.pos.z - g.position.z); eye.intensity = strobe ? 14 : 2;
+    const eye = g.getObjectByName('eye') as THREE.Mesh; eye.position.set(e.pos.x - g.position.x, 1.6, e.pos.z - g.position.z); eye.scale.setScalar(strobe ? 1.4 : 0.6);
     // coil: crouch squash + pink eye strobe on the Viper itself
     e.squash = Math.max(e.squash, 0.55 * k + 0.2); e.cm.pivot.position.y = -0.12 * k;
     if (strobe) e.flash(PP.color, 0.04);
@@ -1215,7 +1222,7 @@ export class Game {
     const ring = g.getObjectByName('ring') as THREE.Mesh; ring.scale.setScalar(0.75 + Math.sin(this.time * 18) * 0.05);
     (ring.material as THREE.MeshBasicMaterial).opacity = 0.9;
     (g.getObjectByName('disc') as THREE.Mesh).scale.setScalar(0.75); ((g.getObjectByName('disc') as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.35;
-    const eye = g.getObjectByName('eye') as THREE.PointLight; eye.position.set(0, 1.2, 0); eye.intensity = 6;
+    const eye = g.getObjectByName('eye') as THREE.Mesh; eye.position.set(0, 1.2, 0); eye.scale.setScalar(1);
   }
   hidePounceFx(e: Enemy) { if (e.finisherFx) e.finisherFx.visible = false; e.cm.pivot.position.y = 0; if (e.state !== 'pin') e.pinTarget = null; }
   private endPin(e: Enemy, broken: boolean) {
@@ -1759,6 +1766,16 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ debug API (used by headless tests)
+  private sparkAcc = 0;
+  /** PERF: compile every enemy look once at boot so the first spawn of each kind doesn't stall on shader compile. */
+  prewarm(renderer: THREE.WebGLRenderer) {
+    const tmpE: Enemy[] = [];
+    for (const k of Object.keys(ENEMY_DEFS)) { try { const e = new Enemy(k, this.scene, new THREE.Vector3(0, -50, 0)); tmpE.push(e); } catch { /* */ } }
+    for (const e of tmpE) { const fx = this.ensurePounceFx(e); fx.visible = true; fx.position.y = -50; }
+    const fxs = tmpE.map((e) => e.finisherFx);
+    try { renderer.compile(this.scene, this.camera); } catch { /* */ }
+    for (const e of tmpE) e.dispose(this.scene); for (const f of fxs) if (f) this.scene.remove(f);
+  }
   debugApi() {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const g = this;

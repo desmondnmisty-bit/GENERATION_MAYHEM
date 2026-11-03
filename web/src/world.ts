@@ -85,7 +85,7 @@ export class World {
           gl.scene.traverse((o) => {
             const me = o as THREE.Mesh; if (!me.isMesh) return;
             if (/ZONE_Ground|Ground/i.test(me.name) || /Ground/i.test(me.parent?.name ?? '')) { me.visible = false; return; }
-            me.receiveShadow = true;
+            me.receiveShadow = true; me.castShadow = false; me.matrixAutoUpdate = false; me.updateMatrix();
           });
           g.add(gl.scene); this.skinHyperdrive(gl.scene);
         }, undefined, (e) => console.warn('[GM] hyperdrive greybox failed', e)));

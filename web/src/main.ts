@@ -22,7 +22,10 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.1, 400);
 const input = new Input(canvas);
 
-let quality: 'HIGH' | 'LOW' = 'HIGH';
+// PERF: phones / low-core machines start on LOW so Carl/Jessica don't hit the mid-game auto-downgrade hitch
+const lowEnd = (navigator.maxTouchPoints > 0 && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) || (navigator.hardwareConcurrency || 8) <= 4;
+let quality: 'HIGH' | 'LOW' = lowEnd ? 'LOW' : 'HIGH';
+renderer.shadowMap.enabled = quality === 'HIGH';
 let composer: EffectComposer | null = null;
 let bloom: UnrealBloomPass | null = null;
 
@@ -44,7 +47,10 @@ function setupComposer() {
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 }
-function applyQuality() {
+/** soft=true: runtime auto-fallback — drop bloom + pixel ratio + freeze shadow updates WITHOUT recompiling every shader (that recompile was a multi-second freeze). */
+function applyQuality(soft = false) {
+  if (soft) { renderer.shadowMap.autoUpdate = quality === 'HIGH'; renderer.shadowMap.needsUpdate = true; $('btn-quality').textContent = 'GRAPHICS: ' + quality; resize(); return; }
+  renderer.shadowMap.autoUpdate = true;
   renderer.shadowMap.enabled = quality === 'HIGH';
   scene.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.Material | undefined; if (m) m.needsUpdate = true; });
   $('btn-quality').textContent = 'GRAPHICS: ' + quality;
@@ -167,6 +173,7 @@ async function boot() {
   setupComposer();
   resize();
   // warm up shaders so the first frame of play doesn't hitch
+  game.prewarm(renderer);
   renderer.compile(scene, camera);
   status.textContent = '';
   const btn = $('btn-play') as HTMLButtonElement;
@@ -195,7 +202,7 @@ function frame() {
   if (fpsAcc >= 1) {
     const fps = fpsFrames / fpsAcc; fpsAcc = 0; fpsFrames = 0;
     (window as any).__gmFps = fps;
-    if (game.state === 'playing' && quality === 'HIGH' && fps < 38 && !(window as any).__gmNoAutoQuality) { slowSecs++; if (slowSecs >= 4) { quality = 'LOW'; applyQuality(); slowSecs = 0; } }
+    if (game.state === 'playing' && quality === 'HIGH' && fps < 38 && !(window as any).__gmNoAutoQuality) { slowSecs++; if (slowSecs >= 4) { quality = 'LOW'; applyQuality(true); slowSecs = 0; } }
     else slowSecs = 0;
   }
 }
