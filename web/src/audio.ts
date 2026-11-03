@@ -30,7 +30,7 @@ export class Sfx {
     comp.threshold.value = -14; comp.ratio.value = 4;
     this.master.connect(comp); comp.connect(ctx.destination);
     this.sfxBus = ctx.createGain(); this.sfxBus.connect(this.master);
-    this.musicBus = ctx.createGain(); this.musicBus.gain.value = 0.28; this.musicBus.connect(this.master); // capped low per Misty 11-03 (connect was commented out by accident = silent music)
+    this.musicBus = ctx.createGain(); this.musicBus.gain.value = 0.6; this.musicBus.connect(this.master); // capped low per Misty 11-03 (connect was commented out by accident = silent music)
     const len = ctx.sampleRate * 1.5;
     this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
@@ -109,7 +109,8 @@ export class Sfx {
   }
 
   // --- music: 110 bpm dark pulse, scheduled with lookahead ---
-  startMusic() { if (!this.ctx || this.musicOn) return; this.musicOn = true; this.nextNoteTime = this.t + 0.1; this.step = 0; }
+  startMusic() { if (!this.ctx) this.init(); if (!this.ctx) return; if (this.ctx.state === 'suspended') this.ctx.resume(); if (!this.musicTimer) this.musicTimer = setInterval(() => this.updateMusic(), 50); if (this.musicOn) return; this.musicOn = true; this.nextNoteTime = this.t + 0.1; this.step = 0; }
+  private musicTimer: any = 0;
   stopMusic() { this.musicOn = false; }
   setArena(a: ArenaId) { this.arenaMusic = musicForArena(a); }
   updateMusic() {
@@ -123,7 +124,8 @@ export class Sfx {
       const tt = this.nextNoteTime - this.t;
       const root = [0, 0, 3, -2][bar];
       if (bass[s]) { const f = 440 * Math.pow(2, (bass[s] + root - 69) / 12); this.tone('sawtooth', f, f * 0.98, spb * 0.8, 0.12, tt, this.musicBus); }
-      if (s % 4 === 0) this.toneKick(tt);
+      if (bass[s]) { const f2 = 440 * Math.pow(2, (bass[s] + root + 24 - 69) / 12); this.tone('square', f2, f2, spb * 0.7, 0.05, tt, this.musicBus); }
+      if (s % 4 === 0) { this.toneKick(tt); this.tone('triangle', 180, 60, 0.12, 0.3, tt, this.musicBus); }
       if (s % 2 === 1) this.noiseHat(tt, 0.04 + this.intensity * 0.04);
       if ((s === 4 || s === 12) && this.intensity > 0.5) this.noiseSnare(tt);
       this.nextNoteTime += spb; this.step++;
@@ -136,12 +138,14 @@ export class Sfx {
       const s = this.step % 16, tt = this.nextNoteTime - this.t;
       if (s % 2 === 0) this.tone('sine', 55, 50, spb * 1.6, 0.35, tt, this.musicBus);
       if (s === 0 || s === 8) { this.tone('triangle', 220, 220, spb * 6, 0.08, tt, this.musicBus); this.tone('triangle', 233, 233, spb * 6, 0.06, tt, this.musicBus); }
-      if (s % 4 === 3) this.noiseHat(tt, 0.03);
+      if (s % 2 === 0) this.tone('triangle', 110, 104, spb * 1.4, 0.18, tt, this.musicBus);
+      if (s === 0 || s === 8) { this.tone('sawtooth', 440, 440, spb * 5, 0.04, tt, this.musicBus); this.tone('sawtooth', 466, 466, spb * 5, 0.035, tt, this.musicBus); }
+      if (s % 4 === 3) this.noiseHat(tt, 0.05);
       this.nextNoteTime += spb; this.step++;
     }
   }
   /** Duck music under dialogue so she can HEAR the ladies. */
-  duck(on: boolean) { if (this.musicBus && this.ctx) this.musicBus.gain.setTargetAtTime(on ? 0.1 : 0.28, this.t, 0.15); }
+  duck(on: boolean) { if (this.musicBus && this.ctx) this.musicBus.gain.setTargetAtTime(on ? 0.3 : 0.6, this.t, 0.15); }
   /** Stub VO: browser TTS per speaker until real clips exist. Returns a promise that resolves when the line ends. */
   private voMan: Record<string, Record<string, string>> | null = null; private voLoad: Promise<void> | null = null;
   private voKey(line: string) { return line.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().split(/\s+/).slice(0, 6).join('_'); }

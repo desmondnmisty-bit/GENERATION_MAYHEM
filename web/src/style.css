@@ -141,3 +141,6 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; colo
 #cutscene .card { position: absolute; top: 8%; left: 50%; transform: translateX(-50%); color: #fff; font: 900 clamp(26px, 4vw, 56px) Arial, sans-serif; letter-spacing: 0.08em; text-shadow: 0 0 18px #ff1fcf, 0 2px 6px #000; text-align: center; }
 #cutscene .card small { display: block; font-size: 0.45em; color: #ffd0f4; letter-spacing: 0.2em; }
 #cutscene .skip { position: absolute; right: 24px; top: 20px; color: #fffc; font: 700 16px sans-serif; background: #0008; padding: 6px 12px; border-radius: 6px; }
+
+/* Misty 11-03: no bottom caption strip in gameplay — VO only */
+#coms { display: none !important; }
