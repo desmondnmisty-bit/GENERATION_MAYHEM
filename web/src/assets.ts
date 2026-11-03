@@ -4,6 +4,8 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 import vixenUrl from './assets/models/vixen.glb?url';
 import kaileeUrl from './assets/models/kailee.glb?url';
+import briannaUrl from './assets/models/brianna.glb?url';
+import paytonUrl from './assets/models/payton.glb?url';
 import viper01Url from './assets/models/viper01.glb?url';
 import viper02Url from './assets/models/viper02.glb?url';
 import viper03Url from './assets/models/viper03.glb?url';
@@ -21,9 +23,9 @@ import billboardUrl from './assets/tex/brand_billboard.webp?url';
 import markUrl from './assets/tex/brand_mark.webp?url';
 export { default as lockupUrl } from './assets/tex/brand_lockup.webp?url';
 
-export type CharKey = 'vixen' | 'kailee' | 'viper01' | 'viper02' | 'viper03' | 'enforcer' | 'falcon';
+export type CharKey = 'vixen' | 'kailee' | 'brianna' | 'payton' | 'viper01' | 'viper02' | 'viper03' | 'enforcer' | 'falcon';
 const MODEL_URLS: Record<CharKey | 'anims' | 'dock', string> = {
-  vixen: vixenUrl, kailee: kaileeUrl, viper01: viper01Url, viper02: viper02Url, viper03: viper03Url,
+  vixen: vixenUrl, kailee: kaileeUrl, brianna: briannaUrl, payton: paytonUrl, viper01: viper01Url, viper02: viper02Url, viper03: viper03Url,
   enforcer: enforcerUrl, falcon: falconUrl, anims: animsUrl, dock: dockUrl,
 };
 const TEX_URLS = {
@@ -109,7 +111,7 @@ export function addFlash(mat: THREE.Material) {
 }
 
 const HEAD_TARGET: Record<CharKey, number> = {
-  vixen: 1.78, kailee: 1.62, viper01: 1.74, viper02: 1.74, viper03: 1.74, enforcer: 2.0, falcon: 2.5,
+  vixen: 1.78, kailee: 1.62, brianna: 1.66, payton: 1.64, viper01: 1.74, viper02: 1.74, viper03: 1.74, enforcer: 2.0, falcon: 2.5,
 };
 
 export interface CharModel {
@@ -138,7 +140,7 @@ function fallbackModel(color: number, height: number): THREE.Object3D {
 }
 
 const FALLBACK_COLOR: Record<CharKey, number> = {
-  vixen: 0xff1fcf, kailee: 0xff8a2b, viper01: 0xff4fa0, viper02: 0xff4fa0, viper03: 0xff4fa0, enforcer: 0x8a2be2, falcon: 0xd01030,
+  vixen: 0xff1fcf, kailee: 0xff8a2b, brianna: 0x0f7a4a, payton: 0x8a3cff, viper01: 0xff4fa0, viper02: 0xff4fa0, viper03: 0xff4fa0, enforcer: 0x8a2be2, falcon: 0xd01030,
 };
 
 export function makeCharacter(key: CharKey, opts: { tint?: number; emissiveBoost?: number } = {}): CharModel {

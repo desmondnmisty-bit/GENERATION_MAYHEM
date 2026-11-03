@@ -75,7 +75,7 @@ export class Anim {
 }
 
 export type Team = 'hero' | 'enemy';
-export interface HitOpts { stagger?: number; up?: number; source: 'vixen' | 'kailee' | 'enemy' | 'hazard' | 'sling' | 'water'; heavy?: boolean; color?: number }
+export interface HitOpts { stagger?: number; up?: number; source: 'vixen' | 'kailee' | 'brianna' | 'payton' | 'enemy' | 'hazard' | 'sling' | 'water'; heavy?: boolean; color?: number }
 
 export class Actor {
   pos = V(); vel = V(); heading = 0; y = 0; vy = 0;

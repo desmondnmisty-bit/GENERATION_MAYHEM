@@ -1,4 +1,8 @@
 // Tiny WebAudio synth: all SFX + a low dark-synth music loop. No audio files.
+export type ArenaId = 'dock' | 'hyperdrive';
+export type MusicKind = 'fastbeat' | 'suspense';
+/** Arena → music bed. Dock = low fast beat; Hyperdrive (when built) = suspense. */
+export function musicForArena(a: ArenaId): MusicKind { return a === 'hyperdrive' ? 'suspense' : 'fastbeat'; }
 export class Sfx {
   ctx: AudioContext | null = null;
   master!: GainNode;
@@ -12,6 +16,7 @@ export class Sfx {
   private nextNoteTime = 0;
   private step = 0;
   intensity = 0; // 0..1 music intensity
+  arenaMusic: MusicKind = 'fastbeat';
 
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
@@ -25,7 +30,7 @@ export class Sfx {
     comp.threshold.value = -14; comp.ratio.value = 4;
     this.master.connect(comp); comp.connect(ctx.destination);
     this.sfxBus = ctx.createGain(); this.sfxBus.connect(this.master);
-    this.musicBus = ctx.createGain(); this.musicBus.gain.value = 0.32; this.musicBus.connect(this.master);
+    this.musicBus = ctx.createGain(); this.musicBus.gain.value = 0.28; this.musicBus.connect(this.master); // capped low per Misty 11-03 (connect was commented out by accident = silent music)
     const len = ctx.sampleRate * 1.5;
     this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
@@ -106,24 +111,61 @@ export class Sfx {
   // --- music: 110 bpm dark pulse, scheduled with lookahead ---
   startMusic() { if (!this.ctx || this.musicOn) return; this.musicOn = true; this.nextNoteTime = this.t + 0.1; this.step = 0; }
   stopMusic() { this.musicOn = false; }
+  setArena(a: ArenaId) { this.arenaMusic = musicForArena(a); }
   updateMusic() {
     if (!this.ctx || !this.musicOn) return;
-    const spb = 60 / 112 / 4; // 16ths
-    const bass = [36, 36, 48, 36, 39, 36, 46, 36, 36, 36, 48, 36, 43, 41, 39, 34];
+    if (this.arenaMusic === 'suspense') return this.updateSuspense();
+    // fast beat: 138 bpm, quiet bass + four-on-floor + hats
+    const spb = 60 / 138 / 4;
+    const bass = [36, 0, 36, 48, 0, 36, 46, 0, 36, 0, 36, 48, 43, 0, 41, 39];
     while (this.nextNoteTime < this.t + 0.15) {
       const s = this.step % 16, bar = Math.floor(this.step / 16) % 4;
       const tt = this.nextNoteTime - this.t;
       const root = [0, 0, 3, -2][bar];
-      const n = bass[s] + root;
-      const f = 440 * Math.pow(2, (n - 69) / 12);
-      this.tone('sawtooth', f, f * 0.98, spb * 0.9, 0.22, tt, this.musicBus);
-      if (s % 4 === 0) { this.toneKick(tt); }
-      if (s % 2 === 1 && this.intensity > 0.3) this.noiseHat(tt, 0.06 + this.intensity * 0.05);
-      if ((s === 4 || s === 12) && this.intensity > 0.6) this.noiseSnare(tt);
+      if (bass[s]) { const f = 440 * Math.pow(2, (bass[s] + root - 69) / 12); this.tone('sawtooth', f, f * 0.98, spb * 0.8, 0.12, tt, this.musicBus); }
+      if (s % 4 === 0) this.toneKick(tt);
+      if (s % 2 === 1) this.noiseHat(tt, 0.04 + this.intensity * 0.04);
+      if ((s === 4 || s === 12) && this.intensity > 0.5) this.noiseSnare(tt);
       this.nextNoteTime += spb; this.step++;
     }
   }
-  private toneKick(d: number) { this.tone('sine', 120, 40, 0.22, 0.7, d, this.musicBus); }
+  // suspense bed (Hyperdrive): slow pulse + minor-second drone stabs
+  private updateSuspense() {
+    const spb = 60 / 72 / 2;
+    while (this.nextNoteTime < this.t + 0.2) {
+      const s = this.step % 16, tt = this.nextNoteTime - this.t;
+      if (s % 2 === 0) this.tone('sine', 55, 50, spb * 1.6, 0.35, tt, this.musicBus);
+      if (s === 0 || s === 8) { this.tone('triangle', 220, 220, spb * 6, 0.08, tt, this.musicBus); this.tone('triangle', 233, 233, spb * 6, 0.06, tt, this.musicBus); }
+      if (s % 4 === 3) this.noiseHat(tt, 0.03);
+      this.nextNoteTime += spb; this.step++;
+    }
+  }
+  /** Duck music under dialogue so she can HEAR the ladies. */
+  duck(on: boolean) { if (this.musicBus && this.ctx) this.musicBus.gain.setTargetAtTime(on ? 0.1 : 0.28, this.t, 0.15); }
+  /** Stub VO: browser TTS per speaker until real clips exist. Returns a promise that resolves when the line ends. */
+  say(speaker: string, line: string): Promise<void> {
+    return new Promise((res) => {
+      const ss = (window as any).speechSynthesis as SpeechSynthesis | undefined;
+      if (!ss || this.muted) { setTimeout(res, 400 + line.length * 55); return; }
+      const P: Record<string, [number, number]> = { VIXEN: [0.85, 0.95], KAILEE: [1.25, 1.08], BRIANNA: [0.95, 1.0], PAYTON: [1.05, 0.9], KAMYRN: [1.35, 1.12], LILI: [1.6, 1.15], FANG: [0.6, 0.9], COBRA: [0.5, 0.8] };
+      const [pitch, rate] = P[speaker] ?? [1, 1];
+      const u = new SpeechSynthesisUtterance(line.replace(/…/g, ', '));
+      const vs = ss.getVoices().filter((v) => /^en/i.test(v.lang));
+      const fem = vs.filter((v) => /female|samantha|victoria|karen|zira|susan|aria|jenny|fiona|moira|tessa|google us english|google uk english female/i.test(v.name));
+      const pool = fem.length ? fem : vs;
+      if (pool.length) u.voice = pool[Math.abs(speaker.length * 7 + speaker.charCodeAt(0)) % pool.length];
+      u.pitch = Math.min(2, pitch); u.rate = rate; u.volume = 1;
+      let done = false; const fin = () => { if (done) return; done = true; this.duck(false); res(); };
+      u.onend = fin; u.onerror = fin; setTimeout(fin, 1500 + line.length * 120);
+      this.duck(true); ss.speak(u);
+    });
+  }
+  stopVoice() { try { (window as any).speechSynthesis?.cancel(); } catch { /* */ } }
+  rage() { this.tone('sawtooth', 70, 140, 0.8, 0.5); this.noise(0.6, 0.6, 900, 0.6, 'bandpass', 0, 3000); this.tone('square', 220, 440, 0.4, 0.15, 0.1); }
+  mine() { this.tone('sine', 90, 25, 0.9, 1.0); this.noise(0.9, 1.0, 600, 0.4, 'lowpass', 0, 60); this.noise(0.2, 0.6, 3000, 1); }
+  mineClick() { this.tone('square', 2200, 2200, 0.05, 0.15); }
+  radio() { this.noise(0.12, 0.12, 2500, 3); }
+  private toneKick(d: number) { this.tone('sine', 120, 40, 0.2, 0.45, d, this.musicBus); }
   private noiseHat(d: number, v: number) {
     if (!this.ctx) return; const t = this.t + d;
     const s = this.ctx.createBufferSource(); s.buffer = this.noiseBuf;

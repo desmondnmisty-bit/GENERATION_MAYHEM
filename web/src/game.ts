@@ -1,5 +1,6 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import handgunUrl from './assets/models/vixen_handgun.glb?url';
+import kaileeGunUrl from './assets/models/kailee_40cal.glb?url';
 import * as THREE from 'three';
 import { Actor, Enemy, ProjectilePool, angleDiff, angleLerp, dirFromYaw, type HitOpts , ENEMY_FINISHERS } from './actors';
 import { Assets } from './assets';
@@ -10,6 +11,7 @@ import { GATE_Z, World, X_EDGE, X_MIN, ZONES } from './world';
 
 const C = (h: number) => new THREE.Color(h);
 const COL = { blu: C(0x2a7bff), mag: C(0xff1fcf), grn: C(0x39ff14), org: C(0xff8a2b), red: C(0xff2040), cyan: C(0x80e0ff), white: C(0xffffff), yel: C(0xffd040) };
+const UP = new THREE.Vector3(0, 1, 0), EMER = C(0x1fd18a);
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3();
 
 type Spawn = 'v' | 'e' | 'f';
@@ -20,10 +22,23 @@ const WAVES: WaveDef[] = [
   { title: 'WAVE 3', sub: 'FLOODED LOT', batches: [{ list: ['v', 'v', 'v', 'v', 'e'], when: -1 }, { list: ['v', 'v', 'v', 'e', 'e'], when: 2 }] },
   { title: 'WAVE 4', sub: 'FALCON — FACE OF THE IRON ROSE', batches: [{ list: ['f', 'v', 'v'], when: -1 }] },
 ];
+// LEVEL 2 — Soft Hyperdrive (Apex Hyperdrive army arena). Pink Vipers squads: Swarm=Scar Swarm, Cobra=Hood Strike, Fang=Jet Fang, Hive=Hex Nest.
+const WAVES_L2: WaveDef[] = [
+  { title: 'HYPERDRIVE · APPROACH', sub: 'SWARM — SCAR SWARM INCOMING', batches: [{ list: ['v', 'v', 'v', 'v', 'v'], when: -1 }, { list: ['v', 'v', 'v', 'v'], when: 2 }] },
+  { title: 'HYPERDRIVE · RING HALL', sub: 'COBRA — HOOD STRIKE + IRON ROSE', batches: [{ list: ['v', 'v', 'v', 'e', 'e'], when: -1 }, { list: ['v', 'v', 'v', 'e'], when: 2 }] },
+  { title: 'HYPERDRIVE · CORRIDOR', sub: 'FANG — JET FANG DIVES', batches: [{ list: ['v', 'v', 'v', 'v', 'e'], when: -1 }, { list: ['v', 'v', 'v', 'v', 'e', 'e'], when: 2 }] },
+  { title: 'HYPERDRIVE · COCKPIT CORE', sub: 'HIVE — HEX NEST + FALCON', batches: [{ list: ['f', 'v', 'v', 'v'], when: -1 }, { list: ['v', 'v', 'e'], when: 2 }] },
+];
+const VIPER_SQUADS = [
+  { squad: 'SWARM', fin: 'SCAR SWARM' }, { squad: 'COBRA', fin: 'HOOD STRIKE' }, { squad: 'FANG', fin: 'JET FANG' }, { squad: 'HIVE', fin: 'HEX NEST' },
+];
+const L2_ZONE_NAMES = ['APPROACH LANE', 'RING HALL', 'CORRIDOR VIEWPORT', 'COCKPIT CORE'];
 
-export type GameState = 'title' | 'playing' | 'paused' | 'win' | 'lose';
+export type GameState = 'title' | 'playing' | 'paused' | 'win' | 'lose' | 'cutscene';
 
 interface Pickup { mesh: THREE.Mesh; pos: THREE.Vector3; t: number; active: boolean }
+
+interface Ally { a: Actor; key: 'brianna' | 'payton'; name: string; col: number; role: 'melee' | 'ranged'; side: number; back: number; downed: boolean; downT: number; atkCd: number; shootCd: number; lastDmg: number; target: Enemy | null; retarget: number; recoverT: number; swing: number; sigCd: number; sigT: number; sigShot: number }
 
 export class Game {
   scene: THREE.Scene;
@@ -37,6 +52,7 @@ export class Game {
   proj: ProjectilePool;
   vixen: Actor;
   kailee: Actor;
+  allies: Ally[] = [];
   enemies: Enemy[] = [];
   pickups: Pickup[] = [];
   state: GameState = 'title';
@@ -45,6 +61,13 @@ export class Game {
   // wave flow
   wave = 0; waveActive = false; batch = 0; waveCleared = false; gateOpen = false; introT = 0; lastBannerT = 0;
   chaos = 0; chaosReadyAnnounced = false;
+  // Mom's Frenzy (the 'chaos' meter, renamed Misty 11-03) + RAGE skate power + level
+  level: 1 | 2 = 1; frenzyReason = ''; frenzyReasonT = 0; rageT = 0; rageCd = 0; lastGirlHurtT = -99; viperSeq = 0;
+  private voiceQ: Promise<void> = Promise.resolve(); voiceGen = 0;
+  hushVoice() { this.voiceGen++; this.voiceQ = Promise.resolve(); sfx.stopVoice(); }
+  private gatling: THREE.Group | null = null; private seekerCd = 3; private kLabelT = 0;
+  get waves() { return this.level === 2 ? WAVES_L2 : WAVES; }
+  zoneName(i: number) { return this.level === 2 ? L2_ZONE_NAMES[i] : ZONES[i].name; }
   // player state
   p = { combo: 0, comboT: 0, atkT: 0, atkDur: 0, atkHit: false, coneCd: 0, spaceT: 0, lastSafe: new THREE.Vector3(), braking: false, brakeSfxT: 0, fwdSpeed: 0, turn: 0, aimYaw: 0, invuln: 0 };
   slingAimYaw = 0;
@@ -71,7 +94,14 @@ export class Game {
     this.addVixenKit(this.vixen);
     this.vixen.team = 'hero'; this.vixen.radius = 0.45;
     this.kailee = new Actor('kailee', scene);
+    this.addKaileeKit(this.kailee);
     this.kailee.team = 'hero'; this.kailee.radius = 0.4; this.kailee.maxHp = this.kailee.hp = 120;
+    // Brianna (deep emerald, gauntlet brawler) + Payton (purple, ranged) — AI allies, Kailee pattern
+    for (const [key, name, col, role, side, back] of [['brianna', 'BRIANNA', 0x0f9a5a, 'melee', -2.4, 1.6], ['payton', 'PAYTON', 0x9a4cff, 'ranged', 2.6, 3.6]] as const) {
+      const a = new Actor(key, scene); a.team = 'hero'; a.radius = 0.4; a.maxHp = a.hp = role === 'melee' ? 130 : 100;
+      this.allies.push({ a, key, name, col, role, side, back, downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, retarget: 0, recoverT: 0, swing: 0, sigCd: 4 + Math.random() * 2, sigT: 0, sigShot: 0 });
+    }
+    for (const al of this.allies) this.addAllyKit(al);
     this.vixen.onLand = () => { sfx.land(); this.vixen.squash = 0.6; this.particles.burst(tmp.copy(this.vixen.pos).setY(0.1), 6, COL.grn, 2, 0.12, 0.3, -3, 0.2); };
     this.vixen.onWallHit = (imp) => { if (imp > 6) { this.shake(0.25); sfx.clang(); this.vixen.squash = 0.5; } };
     // aim ring + slingshot aim line
@@ -81,7 +111,7 @@ export class Game {
     this.slingLine = new THREE.Mesh(lg, new THREE.MeshBasicMaterial({ color: 0xff1fcf, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
     this.slingLine.visible = false;
     scene.add(this.slingLine);
-    for (const id of ['hp-vixen', 'hp-kailee', 'kailee-status', 'wave-label', 'enemy-count', 'objective', 'chaos-wrap', 'chaos-fill', 'ab-cone', 'ab-sling', 'banner', 'fx-vignette', 'fx-flash', 'boss', 'hp-boss'])
+    for (const id of ['hp-vixen', 'hp-kailee', 'kailee-status', 'hp-brianna', 'brianna-status', 'hp-payton', 'payton-status', 'wave-label', 'enemy-count', 'objective', 'chaos-wrap', 'chaos-fill', 'frenzy-reason', 'ab-cone', 'ab-sling', 'banner', 'fx-vignette', 'fx-flash', 'boss', 'hp-boss'])
       this.hud[id] = document.getElementById(id)!;
     this.resetRun();
   }
@@ -104,6 +134,7 @@ export class Game {
     v.pos.set(0, 0, z); v.vel.set(0, 0, 0); v.heading = 0; v.y = 0; v.vy = 0; v.grounded = true; v.alive = true;
     k.pos.set(2, 0, z - 2.5); k.vel.set(0, 0, 0); k.heading = 0; k.y = 0; k.vy = 0; k.grounded = true; k.alive = true;
     k.cm.pivot.rotation.x = 0; k.cm.pivot.position.y = 0;
+    for (const al of this.allies) { const a = al.a; a.pos.set(al.side, 0, z - al.back); a.vel.set(0, 0, 0); a.heading = 0; a.y = 0; a.vy = 0; a.grounded = true; a.alive = true; a.cm.pivot.rotation.x = 0; a.cm.pivot.position.y = 0; }
     this.p.fwdSpeed = 0; this.p.lastSafe.copy(v.pos); this.camYaw = 0;
     this.camera.position.set(0, 3, z - 7);
   }
@@ -113,10 +144,16 @@ export class Game {
     this.wave = 0; this.waveActive = false; this.batch = 0; this.waveCleared = false; this.gateOpen = false; this.introT = 1.2;
     this.chaos = 0; this.chaosReadyAnnounced = false;
     this.vixen.hp = this.vixen.maxHp; this.kailee.hp = this.kailee.maxHp;
+    for (const al of this.allies) { al.a.hp = al.a.maxHp; Object.assign(al, { downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, recoverT: 0 }); }
     Object.assign(this.k, { downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, recoverT: 0, slideCd: 4, slideT: 0, slideHits: 0, slideTgt: null });
     Object.assign(this.p, { combo: 0, comboT: 0, atkT: 0, coneCd: 0, invuln: 0 });
     this.stats = { time: 0, kos: 0, slingKos: 0, splashKos: 0, maxCombo: 0, slings: 0, combo: 0, comboT: 0 };
     this.placeHeroes(-4);
+    this.spawnMines(); this.comsCd = {}; this.lowHpCd = 0;
+    setTimeout(() => this.coms('COM_KAM_01'), 1500); setTimeout(() => this.coms('COM_LIL_01'), 5600);
+    this.hushVoice(); this.lastGirlHurtT = -99;
+    this.level = 1; this.world.setArena('dock'); this.rageT = 0; this.rageCd = 0; this.frenzyReason = ''; this.viperSeq = 0;
+    sfx.setArena('dock');
     this.setObjective('Skate the green rail north — clear Berth 1');
     this.hud['boss'].classList.add('hidden');
   }
@@ -127,20 +164,108 @@ export class Game {
     this.world.setGateActive(false);
     this.gateOpen = false; this.waveActive = false; this.batch = 0; this.waveCleared = false; this.introT = 0.8;
     this.vixen.hp = this.vixen.maxHp; this.kailee.hp = this.kailee.maxHp; this.k.downed = false;
+    for (const al of this.allies) { al.a.hp = al.a.maxHp; al.downed = false; al.downT = 0; }
     this.chaos = Math.max(this.chaos, 50); this.chaosReadyAnnounced = this.chaos >= 100;
     this.placeHeroes(ZONES[w].z0 + (w === 0 ? 4 : 3));
     this.hud['boss'].classList.add('hidden');
-    this.setObjective(`Retry: ${ZONES[w].name}`);
+    this.rageT = 0;
+    this.setObjective(`Retry: ${this.zoneName(w)}`);
   }
   setState(s: GameState) { this.state = s; this.onStateChange(s); }
 
+  // ------------------------------------------------------------------ land mines (Misty 11-03)
+  mines: { x: number; z: number; mesh: THREE.Group; armT: number; live: boolean }[] = [];
+  private craters: THREE.Mesh[] = [];
+  private spawnMines() {
+    for (const m of this.mines) this.scene.remove(m.mesh);
+    for (const c of this.craters) this.scene.remove(c);
+    this.mines = []; this.craters = [];
+    const rust = new THREE.MeshStandardMaterial({ color: 0x5a4a22, roughness: 0.9, metalness: 0.4 });
+    const ox = new THREE.MeshStandardMaterial({ color: 0x7a3a14, roughness: 1, metalness: 0.2 });
+    const red = new THREE.MeshStandardMaterial({ color: 0xff2200, emissive: 0xff2200, emissiveIntensity: 1.5 });
+    for (let zi = 0; zi < ZONES.length; zi++) {
+      const zone = ZONES[zi], n = this.level === 2 ? 5 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < n; i++) {
+        const x = X_MIN + 3 + Math.random() * (X_EDGE - X_MIN - 6);
+        const z = zone.z0 + 8 + Math.random() * (zone.z1 - zone.z0 - 12);
+        if (Math.abs(x) < 3 && z < 6) continue; // keep spawn clear
+        const g = new THREE.Group();
+        const disk = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, 0.14, 14), rust); disk.position.y = 0.07;
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.04, 6, 14), ox); ring.rotation.x = Math.PI / 2; ring.position.y = 0.14;
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 6), ox); spike.position.y = 0.25;
+        const led = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), red); led.position.set(0.22, 0.16, 0);
+        g.add(disk, ring, spike, led); g.position.set(x, 0, z); g.rotation.y = Math.random() * 6;
+        this.scene.add(g);
+        this.mines.push({ x, z, mesh: g, armT: -1, live: true });
+      }
+    }
+  }
+  private updateMines(dt: number) {
+    const actors: Actor[] = [this.vixen, this.kailee, ...this.enemies.filter((e) => e.state !== 'dead')];
+    for (const m of this.mines) {
+      if (!m.live) continue;
+      if (m.armT < 0) {
+        for (const a of actors) if (a.y < 0.4 && Math.hypot(a.pos.x - m.x, a.pos.z - m.z) < 0.9) { m.armT = 0.25; sfx.mineClick(); break; }
+        continue;
+      }
+      m.armT -= dt;
+      if (m.armT > 0) continue;
+      m.live = false; this.scene.remove(m.mesh);
+      const c = new THREE.Mesh(new THREE.CircleGeometry(1.3, 16), new THREE.MeshBasicMaterial({ color: 0x0a0806, transparent: true, opacity: 0.75 }));
+      c.rotation.x = -Math.PI / 2; c.position.set(m.x, 0.02, m.z); this.scene.add(c); this.craters.push(c);
+      const at = tmp2.set(m.x, 0.6, m.z);
+      this.particles.burst(at, 30, COL.yel, 9, 0.2, 0.6); this.particles.burst(at, 18, COL.org, 6, 0.25, 0.9);
+      sfx.mine(); if (Math.hypot(this.vixen.pos.x - m.x, this.vixen.pos.z - m.z) < 20) this.shake(0.6);
+      for (const a of actors) {
+        const d = Math.hypot(a.pos.x - m.x, a.pos.z - m.z);
+        if (d > 3.6) continue;
+        const f = 1 - d / 3.6;
+        const dir = tmp.set(a.pos.x - m.x || 0.01, 0, a.pos.z - m.z).normalize();
+        const hero = a === this.vixen || a === this.kailee;
+        this.hurt(a, Math.round((hero ? 30 : 70) * f + 8), dir, 20 * f + 6, { source: 'hazard', stagger: 1.2, up: 7, heavy: true, color: 0xffa040 });
+        a.vy = Math.max(a.vy, 6 * f); a.grounded = false; a.y = Math.max(a.y, 0.01);
+      }
+    }
+  }
+  // ------------------------------------------------------------------ Kamyrn + Lili coms (DOCK_DIALOGUE_PACK §C, text radio — no VO clips exist yet)
+  private comsT = 0; private comsCd: Record<string, number> = {}; private lowHpCd = 0;
+  /** Show a coms line AND speak it (stub TTS until real VO clips exist), queued so lines never talk over each other. */
+  comsLine(who: string, line: string) {
+    const gen = this.voiceGen;
+    this.voiceQ = this.voiceQ.then(() => {
+      if (gen !== this.voiceGen || this.state === 'cutscene') return;
+      const el = document.getElementById('coms');
+      if (el) { el.className = who === 'LILI' ? 'lili' : who === 'PAYTON' ? 'payton' : who === 'VIXEN' ? 'vixen' : ''; el.innerHTML = `<b>📻 ${who}:</b>${line}`; el.style.opacity = '1'; }
+      this.comsT = 99; sfx.radio();
+      return sfx.say(who, line).then(() => { this.comsT = 1.2; });
+    });
+  }
+  coms(id: string) {
+    const L: Record<string, [string, string]> = {
+      COM_L2_0: ['KAMYRN', 'Swarm on the approach — Scar Swarm. Stay tight.'], COM_L2_1: ['LILI', 'Cobra in the Ring Hall. Hood Strike — watch the hood.'],
+      COM_L2_2: ['KAMYRN', 'Jet Fang diving the corridor. Hop it.'], COM_L2_3: ['LILI', "Hive's nest is in the core. Bring everybody home, Grandma."],
+      COM_KAM_01: ['KAMYRN', "Vixen on coms. Berth's hot — keep skating."], COM_LIL_01: ['LILI', "Grandma you got this. Don't stop."],
+      COM_KAM_02: ['KAMYRN', 'IRS on your six. Check left.'], COM_LIL_02: ['LILI', "Kailee's with you — stay loud."],
+      COM_KAM_03: ['KAMYRN', "Slither's nest ahead. End him."], COM_LIL_03: ['LILI', 'Grandma? Please get up.'],
+      COM_KAM_04: ['KAMYRN', "Berth cleared. Next room. Don't freeze."], COM_LIL_04: ['LILI', "You're almost home. Bring Mom back."],
+    };
+    const l = L[id]; if (!l) return;
+    if ((this.comsCd[id] ?? -99) > this.time - 8) return;
+    this.comsCd[id] = this.time;
+    this.comsLine(l[0], l[1]);
+  }
+  private updateComs(dt: number) {
+    if (this.comsT > 0) { this.comsT -= dt; if (this.comsT <= 0) { const el = document.getElementById('coms'); if (el) el.style.opacity = '0'; } }
+    this.lowHpCd -= dt;
+    if (this.vixen.hp < this.vixen.maxHp * 0.3 && this.lowHpCd <= 0) { this.lowHpCd = 25; this.coms('COM_LIL_03'); }
+  }
   // ------------------------------------------------------------------ helpers
   shake(a: number) { this.trauma = Math.min(1, this.trauma + a); }
   banner(big: string, small = '', dur = 2.2) {
     const b = this.hud['banner'];
     b.innerHTML = `${big}${small ? `<small>${small}</small>` : ''}`;
     b.style.opacity = '1';
-    this.lastBannerT = dur;
+    this.lastBannerT = Math.min(dur, 1.8);
   }
   setObjective(t: string) { this.hud['objective'].textContent = t; }
   // TEMP web stand-in until concept/3D redo: oversized skate wheels + chunky Sophisticated-Brutality cannon.
@@ -175,8 +300,62 @@ export class Game {
     kit.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
     root.add(kit);
   }
-  addChaos(n: number) {
+  gatlingSpin = 0;
+  /** Web stand-ins until Soft models: Brianna thermal arm gauntlets + chest plate + BB shoulder seeker pod; Payton Gatling + big amp wheels (Vixen pattern). */
+  addAllyKit(al: Ally) {
+    const root = al.a.cm.root, kit = new THREE.Group(); kit.name = al.key + '-kit';
+    const steel = new THREE.MeshStandardMaterial({ color: 0x23252a, metalness: 0.9, roughness: 0.35 });
+    if (al.key === 'brianna') {
+      const coil = new THREE.MeshStandardMaterial({ color: 0x1fd18a, emissive: 0x1fd18a, emissiveIntensity: 2.4, toneMapped: false });
+      for (const sx of [-0.36, 0.36]) {
+        const g = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.36, 10), steel); g.rotation.x = Math.PI / 2; g.position.set(sx, 1.0, 0.16); kit.add(g);
+        for (const dz of [-0.1, 0, 0.1]) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.088, 0.016, 6, 14), coil); r.position.set(sx, 1.0, 0.16 + dz); kit.add(r); }
+      }
+      const chest = new THREE.Mesh(new THREE.CircleGeometry(0.09, 16), new THREE.MeshStandardMaterial({ color: 0xff8a2b, emissive: 0xff8a2b, emissiveIntensity: 2.5, toneMapped: false })); chest.position.set(0, 1.28, 0.17); kit.add(chest);
+      const pod = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.2), steel); pod.position.set(0.2, 1.52, -0.02); kit.add(pod);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff2040, toneMapped: false })); eye.position.set(0.2, 1.52, 0.09); kit.add(eye);
+    } else {
+      const gun = new THREE.Group(); gun.position.set(0.36, 1.0, 0.25); kit.add(gun); this.gatling = gun;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.24), steel); body.position.z = -0.06; gun.add(body);
+      const barrels = new THREE.Group(); barrels.name = 'barrels'; gun.add(barrels);
+      const pur = new THREE.MeshStandardMaterial({ color: 0x9a4cff, emissive: 0x6a20ff, emissiveIntensity: 1.6 });
+      for (let i = 0; i < 6; i++) { const ang = i / 6 * Math.PI * 2; const b = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.46, 6), i % 2 ? steel : pur); b.rotation.x = Math.PI / 2; b.position.set(Math.cos(ang) * 0.05, Math.sin(ang) * 0.05, 0.22); barrels.add(b); }
+      // big amp wheels like Vixen (purple neon)
+      const tire = new THREE.MeshStandardMaterial({ color: 0x1a0830, emissive: 0x6a00ff, emissiveIntensity: 0.9, roughness: 0.4, metalness: 0.5 });
+      const neon = new THREE.MeshStandardMaterial({ color: 0xc08bff, emissive: 0xb070ff, emissiveIntensity: 3, toneMapped: false });
+      const wg = new THREE.TorusGeometry(0.2, 0.085, 10, 24), rg = new THREE.TorusGeometry(0.25, 0.02, 6, 24);
+      for (const sx of [-0.18, 0.18]) for (const z of [-0.26, 0, 0.26]) {
+        const w = new THREE.Mesh(wg, tire); w.rotation.y = Math.PI / 2; w.position.set(sx, 0.15, z); kit.add(w);
+        const r = new THREE.Mesh(rg, neon); r.rotation.y = Math.PI / 2; r.position.copy(w.position); r.position.x += sx > 0 ? 0.05 : -0.05; kit.add(r);
+      }
+    }
+    kit.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
+    root.add(kit);
+  }
+  // Kailee pearl .40 (3D 1103, LOD1) in right hand + thin red underbarrel laser. Replaces stand-in K pistol.
+  kaileeMuzzle = new THREE.Object3D();
+  addKaileeKit(a: Actor) {
+    const gun = new THREE.Group(); gun.name = 'kailee-40cal';
+    const hand = a.cm.bones['hand_r'];
+    // root-space hang (same pattern as Vixen handgun); bone scale on these rigs is unreliable
+    gun.position.set(0.36, 0.98, 0.22); a.cm.root.add(gun); void hand;
+    const L = 0.28; // m, longest axis
+    new GLTFLoader().load(kaileeGunUrl, (g) => {
+      const m = g.scene; const bb = new THREE.Box3().setFromObject(m); const sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+      const sc = L / Math.max(sz.x, sz.y, sz.z); m.position.sub(c).multiplyScalar(sc); m.scale.setScalar(sc);
+      const holder = new THREE.Group(); holder.add(m); holder.rotation.y = -Math.PI / 2; // barrel +X -> forward +Z
+      holder.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
+      gun.add(holder);
+    });
+    this.kaileeMuzzle.position.set(0, 0.01, L * 0.5); gun.add(this.kaileeMuzzle);
+    const laser = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 1.2, 4).rotateX(Math.PI / 2).translate(0, 0, 0.6),
+      new THREE.MeshBasicMaterial({ color: 0xff1010, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    laser.position.set(0, -0.035, L * 0.5); laser.name = 'kailee-laser'; gun.add(laser);
+  }
+  addChaos(n: number, reason?: string) {
     if (this.sling.phase !== 'none') return;
+    if (reason) { this.frenzyReason = reason; this.frenzyReasonT = 2.2; }
+    else if (this.frenzyReasonT <= 0) { this.frenzyReason = 'FIGHTING FOR THEM'; this.frenzyReasonT = 1.0; }
     const before = this.chaos;
     this.chaos = Math.min(100, this.chaos + n);
     if (before < 100 && this.chaos >= 100 && !this.chaosReadyAnnounced) {
@@ -184,11 +363,12 @@ export class Game {
       this.shake(0.55); sfx.chaosReady();
       const f = this.hud['fx-flash']; f.style.transition = 'none'; f.style.opacity = '1';
       requestAnimationFrame(() => { f.style.transition = 'opacity 0.9s'; f.style.opacity = '0'; });
-      this.banner('CHAOS FULL', 'SHATTER-SLINGSHOT READY — PRESS E', 1.8);
+      this.banner("MOM'S FRENZY FULL", 'SLINGSHOT READY — PRESS E', 1.2);
       this.trans.ring(this.vixen.pos, 0xff1fcf, 0.5, 6, 0.6);
     }
   }
-  heroes() { return [this.vixen, this.kailee]; }
+  heroes() { return [this.vixen, this.kailee, ...this.allies.filter((al) => !al.downed).map((al) => al.a)]; }
+  allyOf(a: Actor) { return this.allies.find((al) => al.a === a); }
 
   /** central damage routine */
   hurt(target: Actor, amount: number, dir: THREE.Vector3, knock: number, o: HitOpts) {
@@ -197,12 +377,28 @@ export class Game {
       if (this.p.invuln > 0 || this.state !== 'playing') return;
       target.hp -= amount; this.p.invuln = 0.45;
       target.flash(0xff3050, 0.12); sfx.playerHurt(); this.shake(0.18 + amount * 0.012);
-      target.vel.addScaledVector(dir, knock); this.p.fwdSpeed *= 0.6;
+      if (this.rageT > 0) this.dmg.spawn(tmp.copy(target.pos).setY(target.y + 2.6), 'PROTECT MODE', 'v');
+      else { target.vel.addScaledVector(dir, knock); this.p.fwdSpeed *= 0.6; }
       this.dmg.spawn(tmp.copy(target.pos).setY(target.y + 2), '-' + Math.round(amount), 'v');
       const vg = this.hud['fx-vignette']; vg.style.opacity = '1'; setTimeout(() => { vg.style.opacity = '0'; }, 120);
       if (target.anim.has('HitReact_Light') && this.p.atkT <= 0) target.anim.once('HitReact_Light', 0.35);
       this.stats.combo = 0;
       if (target.hp <= 0) { target.hp = 0; this.lose(); }
+      return;
+    }
+    const al = this.allyOf(target);
+    if (al) {
+      if (al.downed) return;
+      target.hp -= amount; target.flash(al.col, 0.1); sfx.kaileeHurt();
+      target.vel.addScaledVector(dir, knock * 0.7);
+      this.dmg.spawn(tmp.copy(target.pos).setY(target.y + 1.9), '-' + Math.round(amount), 'k');
+      al.lastDmg = this.time; this.lastGirlHurtT = this.time; this.addChaos(Math.min(amount, 20) * 1.3, 'PROTECT — ' + al.name + ' HIT');
+      if (target.hp <= 0) {
+        target.hp = 0; al.downed = true; al.downT = al.key === 'payton' ? 9 : 8; sfx.kaileeDown(); this.addChaos(25, al.name + ' DOWN — PROTECT HER');
+        this.banner(al.name + ' DOWN', al.key === 'payton' ? 'COVER HER — SHE GETS UP SLOW' : 'BACK UP IN 8 SECONDS', 1.4);
+        if (al.key === 'payton') this.paytonDownComs();
+      }
+      else if (target.anim.has('HitReact_Light')) target.anim.once('HitReact_Light', 0.3);
       return;
     }
     if (target === this.kailee) {
@@ -211,11 +407,11 @@ export class Game {
       target.hp -= amount; target.flash(0xffa060, 0.1); sfx.kaileeHurt();
       target.vel.addScaledVector(dir, knock * 0.7);
       this.dmg.spawn(tmp.copy(target.pos).setY(target.y + 1.9), '-' + Math.round(amount), 'k');
-      this.k.lastDmg = this.time;
-      this.addChaos(dealt * 1.6);
+      this.k.lastDmg = this.time; this.lastGirlHurtT = this.time;
+      this.addChaos(dealt * 1.6, 'PROTECT — KAILEE HIT');
       if (target.hp <= 0) {
         target.hp = 0; this.k.downed = true; this.k.downT = 8; sfx.kaileeDown();
-        this.addChaos(20);
+        this.addChaos(20, 'KAILEE DOWN — PROTECT HER');
         this.banner('KAILEE DOWN', 'SHE\'S BACK UP IN 8 SECONDS', 1.6);
       } else if (target.anim.has('HitReact_Light')) target.anim.once('HitReact_Light', 0.3);
       return;
@@ -223,6 +419,8 @@ export class Game {
     // enemy
     const e = target as Enemy;
     if (e.state === 'dead') return;
+    if (o.source === 'vixen' && this.rageT > 0) amount = Math.round(amount * 1.5);
+    if (o.source === 'vixen') { const g = this.girlNear(e.pos, 5); if (g) this.addChaos(3, 'VIXEN PROTECTS ' + g); }
     e.hp -= amount;
     e.lastHitSource = o.source;
     e.flash(o.color ?? 0xffffff, o.heavy ? 0.14 : 0.08);
@@ -291,6 +489,11 @@ export class Game {
     this.trans.ring(p, 0x39ff14, 0.2, 2.2, 0.5);
     this.trans.flash(tmp.copy(p).setY(1.2), 0x39ff14, 0.2, 1.0, 0.3);
     this.particles.burst(tmp.copy(p).setY(0.3), 14, COL.grn, 5, 0.2, 0.6, 4, 1);
+    if (this.level === 2 && type === 'v') {
+      const sq = VIPER_SQUADS[Math.min(3, this.wave)] ?? VIPER_SQUADS[this.viperSeq++ % 4];
+      (e as any).squad = sq.squad; (e as any).fin = sq.fin;
+      if (this.viperSeq++ % 3 === 0) this.dmg.spawn(tmp.copy(p).setY(2.4), sq.squad, 'big');
+    }
     if (type === 'f') {
       this.hud['boss'].classList.remove('hidden');
       e.cm.root.scale.setScalar(1);
@@ -303,21 +506,25 @@ export class Game {
     if (this.state !== 'playing') { this.updateCamera(rawDt, true); return; }
     const dt = Math.min(rawDt, 1 / 30);
     this.time += dt; this.stats.time += dt;
-    if (this.input.hit('KeyM')) sfx.setMuted(!sfx.muted);
     if (this.hitstop > 0) { this.hitstop -= dt; this.updateCamera(dt, false); this.input.endFrame(); return; }
     const wdt = dt * this.worldScale;
     this.updatePlayer(dt);
     this.updateSling(dt);
     if (this.sling.phase === 'none') this.updateKailee(wdt);
+    for (const al of this.allies) this.updateAlly(al, wdt);
     for (const e of this.enemies) this.updateEnemy(e, wdt);
     this.separate();
     this.updateProjectiles(wdt);
     this.updateHazards(dt);
+    this.updateMines(dt);
+    this.updateComs(dt);
+    this.updateFrenzy(dt);
     this.updatePickups(dt);
     this.updateWaves(dt);
     // visuals
     this.vixen.syncVisual(dt, this.p.turn);
     this.kailee.syncVisual(wdt, 0);
+    for (const al of this.allies) al.a.syncVisual(wdt, 0);
     for (const e of this.enemies) e.syncVisual(wdt, 0);
     this.enemies = this.enemies.filter((e) => { if (e.state === 'dead' && e.deadT > 1.4) { e.dispose(this.scene); return false; } return true; });
     this.world.update(dt, this.time, this.vixen.pos);
@@ -364,7 +571,8 @@ export class Game {
     const wx = f.x * iz - f.z * ix, wz = f.z * iz + f.x * ix; // right = (-f.z, 0, f.x)
     const wishLen = Math.hypot(wx, wz);
     const sling = this.sling.phase !== 'none' && this.sling.phase !== 'land';
-    const MAX = 8.0, ACC = 14.5; // pace pass: was 11.5 / 21
+    const rage = this.rageT > 0;
+    const MAX = rage ? 11.8 : 8.0, ACC = rage ? 24 : 14.5; // pace pass: was 11.5 / 21; RAGE = protect burst
     let turn = 0;
     if (inp.down('Space')) p.spaceT += dt; else p.spaceT = 0;
     p.braking = (inp.down('ShiftLeft', 'ShiftRight') || p.spaceT > 0.2) && v.grounded;
@@ -488,7 +696,7 @@ export class Game {
       this.hurt(a, 15, tmp.set(-1, 0, 0), 0, { source: 'water' });
       this.p.invuln = 1.2;
       this.banner('SPLASH!', 'THE WATER BITES — STAY ON THE QUAY', 1.2);
-    } else if (a === this.kailee) {
+    } else if (a === this.kailee || this.allyOf(a)) {
       a.pos.copy(this.vixen.pos).add(tmp.set(-1.5, 0, -1.5)); a.vel.set(0, 0, 0); a.y = 0; a.vy = 0; a.grounded = true;
       this.hurt(a, 10, tmp.set(-1, 0, 0), 0, { source: 'water' });
     } else {
@@ -618,6 +826,159 @@ export class Game {
     }
   }
 
+  // ------------------------------------------------------------------ Brianna + Payton (AI allies, Kailee pattern: follow / engage / down 8s + revive)
+  private updateAlly(al: Ally, dt: number) {
+    const a = al.a, v = this.vixen;
+    a.hazardCd = Math.max(0, a.hazardCd - dt);
+    if (al.downed) {
+      al.downT -= dt; a.vel.multiplyScalar(0.9); a.integrate(dt, this.world.colliders);
+      a.cm.pivot.rotation.x += (-1.35 - a.cm.pivot.rotation.x) * Math.min(1, dt * 6); a.cm.pivot.position.y = 0.25;
+      if (al.downT <= 0) {
+        al.downed = false; a.hp = a.maxHp * 0.3; sfx.kaileeUp(); a.cm.pivot.rotation.x = 0; a.cm.pivot.position.y = 0;
+        if (a.anim.has('Knockdown_Recover')) a.anim.once('Knockdown_Recover', 0.9);
+        this.trans.ring(a.pos, al.col, 0.3, 3, 0.5); this.dmg.spawn(tmp.copy(a.pos).setY(2), al.name + ' BACK UP', 'heal'); al.recoverT = al.key === 'payton' ? 2.2 : 0.8;
+        if (al.key === 'payton') { this.comsLine('PAYTON', "I'm up girls… I'm up."); this.comsLine('PAYTON', "Mom — what's your 6?"); }
+      }
+      return;
+    }
+    if (al.recoverT > 0) { al.recoverT -= dt; a.integrate(dt, this.world.colliders); return; }
+    if (this.pinnedBy(a)) { a.vel.set(0, 0, 0); a.anim.setBase('Idle_Skate', 1); return; }
+    al.atkCd = Math.max(0, al.atkCd - dt); al.shootCd = Math.max(0, al.shootCd - dt); al.sigCd = Math.max(0, al.sigCd - dt);
+    if (al.sigT > 0 && (!al.target || al.target.state === 'dead')) { al.sigT = Math.max(0, al.sigT - dt); }
+    if (this.time - al.lastDmg > 5 && a.hp < a.maxHp) a.hp = Math.min(a.maxHp, a.hp + 4 * dt);
+    al.retarget -= dt;
+    if (al.retarget <= 0 || (al.target && al.target.state === 'dead')) {
+      al.retarget = 0.45; al.target = null; let best = 15;
+      for (const e of this.enemies) {
+        if (e.state === 'dead' || e.state === 'spawn') continue;
+        const dv = e.pos.distanceTo(v.pos), da = e.pos.distanceTo(a.pos), score = Math.min(dv, da * 0.9);
+        if (dv < 16 && score < best) { best = score; al.target = e; }
+      }
+    }
+    const goal = tmp; let maxSpd = al.role === 'melee' ? 11 : 9.5; const t = al.target; let distT = 99;
+    const keep = al.role === 'melee' ? 1.5 : 7;
+    if (t) {
+      distT = Math.hypot(t.pos.x - a.pos.x, t.pos.z - a.pos.z);
+      const nx = (t.pos.x - a.pos.x) / Math.max(distT, 0.1), nz = (t.pos.z - a.pos.z) / Math.max(distT, 0.1);
+      goal.set(t.pos.x - nx * keep - nz * al.side * 0.3, 0, t.pos.z - nz * keep + nx * al.side * 0.3);
+    } else {
+      const fwd = v.forward(tmp2);
+      goal.set(v.pos.x - fwd.x * al.back + fwd.z * al.side, 0, v.pos.z - fwd.z * al.back - fwd.x * al.side);
+      if (goal.x > X_EDGE - 1.5) goal.x = X_EDGE - 1.5;
+      maxSpd = Math.max(6, v.speed + 2);
+    }
+    const dx = goal.x - a.pos.x, dz = goal.z - a.pos.z, dg = Math.hypot(dx, dz), want = Math.min(maxSpd, dg * 2.6);
+    a.vel.x += ((dg > 0.05 ? dx / dg * want : 0) - a.vel.x) * Math.min(1, dt * 5);
+    a.vel.z += ((dg > 0.05 ? dz / dg * want : 0) - a.vel.z) * Math.min(1, dt * 5);
+    if (a.pos.x > X_EDGE - 1.2 && a.vel.x > 0) a.vel.x -= 30 * dt;
+    const faceYaw = t && distT < 14 ? Math.atan2(t.pos.x - a.pos.x, t.pos.z - a.pos.z) : (a.speed > 0.8 ? Math.atan2(a.vel.x, a.vel.z) : a.heading);
+    a.heading = angleLerp(a.heading, faceYaw, Math.min(1, dt * 10));
+    if (t && t.state !== 'dead' && t.state !== 'spawn') {
+      const dir = tmp2.set(t.pos.x - a.pos.x, 0, t.pos.z - a.pos.z).normalize();
+      if (al.sigT > 0) { this.updateAllySig(al, t, dir, dt); }
+      else if (al.sigCd <= 0 && (al.role === 'melee' ? distT < 4.5 : distT < 15)) { this.startAllySig(al); }
+      else if (al.role === 'melee' && distT < 2.4 && al.atkCd <= 0) {
+        // Brianna: thermal-coil gauntlet haymakers, every 3rd is a heavy
+        al.atkCd = 0.6; al.swing++; const heavy = al.swing % 3 === 0;
+        a.anim.once(heavy ? 'Attack_Elbow' : (al.swing % 2 ? 'Attack_Kick_L' : 'Attack_Kick_R'), 0.4);
+        if (al.swing % 2) a.punchL = 1; else a.punchR = 1;
+        sfx.blade();
+        this.hurt(t, heavy ? 16 : 9, dir.clone(), heavy ? 10 : 4, { source: 'brianna', stagger: heavy ? 0.9 : 0.3, heavy, color: al.col });
+        const hand = tmp3.copy(a.pos).addScaledVector(dir, 0.8).setY(1.2);
+        this.particles.burst(hand, heavy ? 14 : 7, new THREE.Color(al.col), heavy ? 5 : 3, 0.2, 0.3);
+      } else if (al.role === 'ranged' && distT < 15 && al.shootCd <= 0) {
+        al.shootCd = 0.7 + Math.random() * 0.2;
+        const from = tmp3.copy(a.pos).setY(1.1).addScaledVector(dir, 0.5);
+        for (let i = 0; i < 4; i++) { const d = dir.clone().applyAxisAngle(UP, (Math.random() - 0.5) * 0.1); this.proj.fire('pistol', from, d, 55, 3, 'hero', 'payton'); }
+        sfx.pistol(); setTimeout(() => sfx.pistol(), 60); this.gatlingSpin = 0.5;
+        this.particles.emit(from.clone().addScaledVector(dir, 0.6), dir.clone().multiplyScalar(2), new THREE.Color(al.col), 0.3, 0.08);
+      } else if (al.role === 'melee' && distT >= 2.4 && distT < 10 && al.shootCd <= 0) {
+        al.shootCd = 1.3; const from = tmp3.copy(a.pos).setY(1.3);
+        this.proj.fire('pistol', from, dir, 40, 4, 'hero', 'brianna');
+      }
+    }
+    if (al.key === 'brianna' && t && t.state !== 'dead') {
+      this.seekerCd -= dt;
+      if (this.seekerCd <= 0 && distT < 16) {
+        this.seekerCd = 3.2 + Math.random();
+        const from = tmp3.copy(a.pos).setY(1.6); const d = new THREE.Vector3(t.pos.x - from.x, 0, t.pos.z - from.z).normalize();
+        this.proj.fire('bolt', from, d, 30, 14, 'hero', 'brianna'); sfx.bolt();
+        this.particles.burst(from, 8, COL.red, 3, 0.15, 0.2, 0, 0); this.dmg.spawn(tmp.copy(a.pos).setY(2.3), 'BB SEEKER', 'k');
+      }
+    }
+    if (al.key === 'payton' && this.gatling) { this.gatlingSpin = Math.max(0, this.gatlingSpin - dt); const b = this.gatling.getObjectByName('barrels'); if (b) b.rotation.z += dt * (al.sigT > 0 || this.gatlingSpin > 0 ? 40 : 1.5); }
+    if (Math.random() < 0.2) this.particles.emit(tmp3.copy(a.pos).setY(0.1), tmp2.set(0, 0.6, 0), new THREE.Color(al.col), 0.12, 0.25);
+    if (a.pos.distanceTo(v.pos) > 30) { a.pos.copy(v.pos).add(tmp.set(al.side, 0, -al.back)); this.trans.ring(a.pos, al.col, 0.2, 2, 0.4); }
+    a.integrate(dt, this.world.colliders);
+    if (a.overWater && a.y < 0.2) this.fallInWater(a);
+    if (!a.anim.busy) a.anim.setBase(a.speed > 1.2 ? 'Locomotion_Fwd' : 'Idle_Skate', 0.7 + a.speed / 14);
+  }
+
+  // Ally signatures. Brianna: THERMAL COIL LASH (green burn zone). Payton: HUNDRED COUNT (purple Gatling spin-up + burst).
+  static SIG = { brianna: { cd: 8, jitter: 2, dur: 1.8 }, payton: { cd: 9, jitter: 2, dur: 2.4, spin: 0.6, rate: 0.06 } };
+  private startAllySig(al: Ally) {
+    const S = Game.SIG[al.key]; al.sigT = S.dur; al.sigShot = 0; al.sigCd = S.cd + Math.random() * S.jitter;
+    const a = al.a;
+    if (al.key === 'brianna') { al.swing++; (al as any).chest = !(al as any).chest; }
+    if (al.key === 'brianna' && (al as any).chest) {
+      this.banner('CHEST-BUSTER', 'BRIANNA · THERMAL CORE BLAST', 1.0); sfx.cone(); this.shake(0.3);
+    } else if (al.key === 'brianna') {
+      this.banner('THERMAL COIL LASH', 'BRIANNA · BURN ZONE', 1.0);
+      if (a.anim.has('Attack_Punch_R')) a.anim.once('Attack_Punch_R', 0.5); a.punchR = 1;
+      sfx.blade(); sfx.zap(); this.shake(0.2);
+      this.trans.ring(a.pos, al.col, 0.4, 3.6, 0.45); this.trans.ring(a.pos, 0x3dff9a, 0.2, 3.0, 1.6, 0.5);
+    } else {
+      this.banner('HUNDRED COUNT', 'PAYTON · GATLING SPIN-UP', 1.0);
+      sfx.tether();
+    }
+  }
+  private updateAllySig(al: Ally, t: Enemy | null, dir: THREE.Vector3, dt: number) {
+    const a = al.a, col = new THREE.Color(al.col); dir = dir.clone();
+    al.sigT -= dt;
+    if (al.key === 'brianna' && (al as any).chest) {
+      // CHEST-BUSTER: forward thermal cone from her chest plate
+      a.vel.multiplyScalar(0.8);
+      const from = tmp3.copy(a.pos).setY(1.3);
+      for (let i = 0; i < 6; i++) this.particles.emit(from, dir.clone().applyAxisAngle(UP, (Math.random() - 0.5) * 0.5).multiplyScalar(10 + Math.random() * 6), i % 2 ? COL.org : EMER, 0.3, 0.35, 0, 1);
+      al.sigShot += dt;
+      if (al.sigShot >= 0.25) {
+        al.sigShot = 0;
+        for (const e of this.enemies) {
+          if (e.state === 'dead' || e.state === 'spawn') continue;
+          const dx = e.pos.x - a.pos.x, dz = e.pos.z - a.pos.z, d = Math.hypot(dx, dz);
+          if (d < 8 && (dx * dir.x + dz * dir.z) / Math.max(d, 0.1) > 0.8) this.hurt(e, 9, tmp2.set(dx, 0, dz).normalize().clone(), 6, { source: 'brianna', stagger: 0.5, color: 0xff8a2b });
+        }
+      }
+    } else if (al.key === 'brianna') {
+      // burn area around Brianna: green coil arcs + ticking damage
+      for (let i = 0; i < 4; i++) { const ang = Math.random() * Math.PI * 2, r = Math.random() * 3; this.particles.emit(tmp3.set(a.pos.x + Math.cos(ang) * r, 0.15, a.pos.z + Math.sin(ang) * r), tmp.set(0, 1.5 + Math.random(), 0), i % 2 ? col : EMER, 0.22, 0.45, 1); }
+      al.sigShot += dt;
+      if (al.sigShot >= 0.3) {
+        al.sigShot = 0;
+        for (const e of this.enemies) {
+          if (e.state === 'dead' || e.state === 'spawn') continue;
+          if (Math.hypot(e.pos.x - a.pos.x, e.pos.z - a.pos.z) < 3.2) { const d = tmp2.set(e.pos.x - a.pos.x, 0, e.pos.z - a.pos.z).normalize(); this.hurt(e, 5, d.clone(), 2, { source: 'brianna', stagger: 0.25, color: al.col }); }
+        }
+        this.trans.ring(a.pos, al.col, 2.6, 3.3, 0.3, 0.6);
+      }
+    } else {
+      const S = Game.SIG.payton, el = S.dur - al.sigT;
+      a.vel.multiplyScalar(0.85);
+      const from = tmp3.copy(a.pos).addScaledVector(dir, 0.6).setY(1.2);
+      if (el < S.spin) { if (Math.random() < 0.5) this.particles.emit(from, tmp.set((Math.random() - 0.5), Math.random(), (Math.random() - 0.5)), col, 0.15, 0.15); if (Math.random() < 0.15) sfx.telegraph(); }
+      else {
+        al.sigShot -= dt;
+        while (al.sigShot <= 0 && t) {
+          al.sigShot += S.rate;
+          const d = dir.clone().applyAxisAngle(UP, (Math.random() - 0.5) * 0.12);
+          this.proj.fire('pistol', from, d.clone(), 60, 2.5, 'hero', 'payton');
+          this.particles.emit(from, d.clone().multiplyScalar(3), Math.random() < 0.5 ? col : COL.white, 0.3, 0.05);
+          if (Math.random() < 0.5) sfx.pistol();
+        }
+      }
+    }
+    if (al.sigT <= 0) al.sigT = 0;
+  }
   // ------------------------------------------------------------------ Kailee (AI ally)
   private updateKailee(dt: number) {
     const k = this.kailee, v = this.vixen, ks = this.k;
@@ -695,12 +1056,14 @@ export class Game {
         const hand = tmp3.copy(k.pos).addScaledVector(dir, 0.8).setY(1.2);
         for (let i = 0; i < 10; i++) this.particles.emit(hand, new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3), i % 3 ? COL.org : COL.yel, 0.22, 0.35, 2, 2);
       } else if (distT >= 2.4 && distT < 13 && ks.shootCd <= 0) {
-        ks.shootCd = 0.75 + Math.random() * 0.2;
+        ks.shootCd = 0.6 + Math.random() * 0.2;
         const from = tmp3.copy(k.pos).setY(1.3);
         const dir = tmp2.set(t.pos.x - k.pos.x, 0, t.pos.z - k.pos.z).normalize();
+        this.kaileeMuzzle.getWorldPosition(from);
         this.proj.fire('pistol', from, dir, 45, 5, 'hero', 'kailee');
         sfx.pistol();
-        this.particles.emit(from.clone().addScaledVector(dir, 0.6), dir.clone().multiplyScalar(2), COL.org, 0.3, 0.08);
+        if (this.time > this.kLabelT) { this.kLabelT = this.time + 5; this.dmg.spawn(tmp.copy(k.pos).setY(2.3), 'KAILEE .40', 'k'); }
+        this.particles.burst(from, 6, COL.yel, 3, 0.16, 0.08, 0, 0); this.particles.emit(from, dir.clone().multiplyScalar(2), COL.white, 0.35, 0.06);
       }
     }
     // flaming wrist blades idle flicker
@@ -717,7 +1080,7 @@ export class Game {
 
   // ------------------------------------------------------------------ Kailee finisher: SLIDE UNDER SLICE (blue, Misty lock 2026-11-02)
   // phases: approach (normal AI) -> under (0.0-0.32s duck dash through target) -> slice (blue blade hits) -> recover
-  static SLIDE = { cooldown: 7, cdJitter: 2, dur: 0.6, speed: 15, hit1: 22, hit2: 18, hitAt1: 0.2, hitAt2: 0.36 };
+  static SLIDE = { cooldown: 5.5, cdJitter: 2, dur: 0.6, speed: 15, hit1: 22, hit2: 18, hitAt1: 0.2, hitAt2: 0.36 };
   private startSlideUnder(t: Enemy, dist: number) {
     const ks = this.k, k = this.kailee, S = Game.SLIDE;
     ks.slideT = S.dur; ks.slideHits = 0; ks.slideTgt = t;
@@ -766,7 +1129,7 @@ export class Game {
     e.pounceTo.set(t.pos.x, 0, t.pos.z);
     e.finisherCd = PP.cooldown + Math.random() * 3;
     sfx.telegraph(); sfx.tether();
-    if (e.pos.distanceTo(this.vixen.pos) < 22) this.banner('PINK POUNCE', t === this.kailee ? 'FANG IS LEAPING AT KAILEE — DODGE / CHECK' : 'FANG IS LEAPING — HOP OR SKATE OUT', 1.1);
+    if (e.pos.distanceTo(this.vixen.pos) < 22) this.banner((e as any).fin ?? 'PINK POUNCE', t === this.kailee ? 'FANG IS LEAPING AT KAILEE — DODGE / CHECK' : 'FANG IS LEAPING — HOP OR SKATE OUT', 1.1);
   }
   private ensurePounceFx(e: Enemy) {
     if (e.finisherFx) return e.finisherFx;
@@ -845,6 +1208,8 @@ export class Game {
   // ------------------------------------------------------------------ enemies
   private pickTarget(e: Enemy): Actor {
     const v = this.vixen, k = this.kailee;
+    const up = this.allies.filter((al) => !al.downed);
+    if (up.length && Math.random() < 0.3) { let b = up[0]; for (const al of up) if (al.a.pos.distanceTo(e.pos) < b.a.pos.distanceTo(e.pos)) b = al; if (b.a.pos.distanceTo(e.pos) < 14) return b.a; }
     if (this.k.downed || this.sling.phase !== 'none') return v;
     const dk = e.pos.distanceTo(k.pos), dv = e.pos.distanceTo(v.pos);
     if (e.def.kind === 'falcon') return Math.random() < 0.7 ? v : k;
@@ -873,7 +1238,7 @@ export class Game {
       return;
     }
     e.stateT -= dt; e.cd -= dt; e.retargetT -= dt;
-    if (!e.target || e.retargetT <= 0 || (e.target === this.kailee && this.k.downed)) { e.target = this.pickTarget(e); e.retargetT = 1.5 + Math.random(); }
+    if (!e.target || e.retargetT <= 0 || (e.target === this.kailee && this.k.downed) || !!this.allyOf(e.target)?.downed) { e.target = this.pickTarget(e); e.retargetT = 1.5 + Math.random(); }
     const t = e.target;
     const dx = t.pos.x - e.pos.x, dz = t.pos.z - e.pos.z, dist = Math.hypot(dx, dz);
     const yawTo = Math.atan2(dx, dz);
@@ -1075,6 +1440,7 @@ export class Game {
   private separate() {
     const all: Actor[] = [this.vixen, ...this.enemies.filter((e) => e.state !== 'dead')];
     if (this.sling.phase === 'none' && !this.k.downed) all.push(this.kailee);
+    for (const al of this.allies) if (!al.downed) all.push(al.a);
     for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
       const a = all[i], b = all[j];
       const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, r = a.radius + b.radius;
@@ -1113,6 +1479,7 @@ export class Game {
     void dt;
     const actors: Actor[] = [this.vixen, ...this.enemies.filter((e) => e.state !== 'dead')];
     if (this.sling.phase === 'none' && !this.k.downed) actors.push(this.kailee);
+    for (const al of this.allies) if (!al.downed) actors.push(al.a);
     const h = this.world.hook;
     const lx = h.load.position.x, ly = h.load.position.y, lz = h.load.position.z;
     for (const a of actors) {
@@ -1168,14 +1535,15 @@ export class Game {
       const trigger = this.wave === 0 ? -999 : zone.z0 + 3;
       if (this.vixen.pos.z > trigger) {
         this.waveActive = true; this.batch = 0;
-        const w = WAVES[this.wave];
-        this.banner(w.title, w.sub, 2.4); sfx.waveStart();
-        this.setObjective(this.wave === 3 ? 'Break Falcon and the Iron Rose escort' : `Clear ${zone.name} — then the gate opens`);
+        const w = this.waves[this.wave];
+        this.banner(w.title, w.sub, 1.6); sfx.waveStart();
+        if (this.level === 2) this.coms('COM_L2_' + this.wave); else if (this.wave === 1) this.coms('COM_KAM_02'); else if (this.wave === 2) this.coms('COM_LIL_02'); else if (this.wave === 3) this.coms('COM_KAM_03');
+        this.setObjective(this.wave === 3 ? (this.level === 2 ? 'Cockpit Core: break Falcon + the Hive' : 'Break Falcon and the Iron Rose escort') : `Clear ${this.zoneName(this.wave)} — then the gate opens`);
       }
       return;
     }
     if (this.waveActive) {
-      const w = WAVES[this.wave];
+      const w = this.waves[this.wave];
       const alive = this.enemies.filter((e) => e.state !== 'dead').length;
       if (this.batch < w.batches.length) {
         const b = w.batches[this.batch];
@@ -1192,13 +1560,14 @@ export class Game {
         this.vixen.hp = Math.min(this.vixen.maxHp, this.vixen.hp + 30);
         if (this.k.downed) { this.k.downed = false; this.k.downT = 0; this.kailee.cm.pivot.rotation.x = 0; this.kailee.cm.pivot.position.y = 0; }
         this.kailee.hp = this.kailee.maxHp;
+        for (const al of this.allies) { al.downed = false; al.downT = 0; al.a.cm.pivot.rotation.x = 0; al.a.cm.pivot.position.y = 0; al.a.hp = al.a.maxHp; }
         if (this.wave < 3) {
           this.world.openBarrier(this.wave);
-          this.banner('BERTH CLEARED', '+30 HP · FENCE DOWN — SKATE NORTH', 2.4);
-          this.setObjective(`Gate open! Follow the rail north to ${ZONES[this.wave + 1].name}`);
+          this.banner('BERTH CLEARED', '+30 HP · FENCE DOWN — SKATE NORTH', 1.8); this.coms('COM_KAM_04');
+          this.setObjective(`Gate open! Follow the rail north to ${this.zoneName(this.wave + 1)}`);
         } else {
           this.gateOpen = true; this.world.setGateActive(true); sfx.gateOpen();
-          this.banner('GATE OPEN', 'EXTRACT — REACH THE MAGENTA GATE', 3);
+          this.banner('GATE OPEN', 'EXTRACT — REACH THE MAGENTA GATE', 2); this.coms('COM_LIL_04');
           this.setObjective('EXTRACT: skate into the magenta gate');
         }
       }
@@ -1212,7 +1581,63 @@ export class Game {
   win() {
     if (this.state !== 'playing') return;
     sfx.win(); this.banner('', '', 0.01);
-    this.setState('win');
+    // Dock cleared -> Dock→Hyperdrive cutscene -> Level 2 (main.ts plays the cutscene, then calls startLevel2)
+    this.hushVoice(); this.rageT = 0;
+    this.setState(this.level === 1 ? 'cutscene' : 'win');
+  }
+  /** LEVEL 2: Soft Hyperdrive army arena (same game). */
+  startLevel2() {
+    this.clearDynamic();
+    this.world.reset();
+    this.hushVoice(); this.lastGirlHurtT = -99;
+    this.level = 2; this.world.setArena('hyperdrive'); sfx.setArena('hyperdrive');
+    this.wave = 0; this.waveActive = false; this.batch = 0; this.waveCleared = false; this.gateOpen = false; this.introT = 2.0;
+    this.chaos = Math.max(this.chaos, 30); this.chaosReadyAnnounced = false; this.rageT = 0; this.rageCd = 0; this.viperSeq = 0;
+    this.vixen.hp = this.vixen.maxHp; this.kailee.hp = this.kailee.maxHp;
+    for (const al of this.allies) { al.a.hp = al.a.maxHp; Object.assign(al, { downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, recoverT: 0 }); }
+    Object.assign(this.k, { downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, recoverT: 0, slideCd: 4, slideT: 0, slideHits: 0, slideTgt: null });
+    this.placeHeroes(-4);
+    this.spawnMines(); this.comsCd = {}; this.lowHpCd = 0;
+    this.comsLine('KAMYRN', "You're in Hyperdrive. Whole base is crawling with Vipers.");
+    this.comsLine('LILI', "Skate fast. Don't stop. Watch the mines.");
+    this.banner('LEVEL 2 — HYPERDRIVE', 'APEX HYPERDRIVE · ARMY ARENA', 2.4);
+    this.setObjective('Skate the approach lane — clear the Scar Swarm');
+    this.hud['boss'].classList.add('hidden');
+  }
+  // ------------------------------------------------------------------ Mom's Frenzy + RAGE (protect-mode, Misty 11-03: "even if it kills her")
+  private girls(): [Actor, string][] {
+    const out: [Actor, string][] = [];
+    if (!this.k.downed && this.sling.phase === 'none') out.push([this.kailee, 'KAILEE']);
+    for (const al of this.allies) if (!al.downed) out.push([al.a, al.name]);
+    return out;
+  }
+  girlNear(p: THREE.Vector3, r: number) { for (const [a, n] of this.girls()) if (Math.hypot(a.pos.x - p.x, a.pos.z - p.z) < r) return n; return null; }
+  private updateFrenzy(dt: number) {
+    this.frenzyReasonT -= dt; this.rageCd -= dt;
+    let threatened: string | null = null;
+    for (const [a, n] of this.girls()) {
+      for (const e of this.enemies) { if (e.state === 'dead' || e.state === 'spawn') continue; if (Math.hypot(e.pos.x - a.pos.x, e.pos.z - a.pos.z) < 3.2) { threatened = n; break; } }
+      if (threatened) break;
+    }
+    const anyDown = this.k.downed || this.allies.some((al) => al.downed);
+    if (threatened) this.addChaos(dt * 5, threatened + ' THREATENED');
+    if (anyDown) this.addChaos(dt * 4, 'A GIRL IS DOWN — GET TO HER');
+    const protecting = threatened || anyDown || this.time - this.lastGirlHurtT < 3;
+    if (this.rageT > 0) {
+      this.rageT -= dt;
+      if (Math.random() < 0.7) this.particles.emit(tmp3.copy(this.vixen.pos).setY(0.3 + Math.random() * 1.4), tmp.set((Math.random() - 0.5) * 2, 1.5, (Math.random() - 0.5) * 2), Math.random() < 0.5 ? COL.mag : COL.red, 0.28, 0.4);
+      if (this.rageT <= 0) { this.rageCd = 6; this.banner('RAGE FADES', '', 0.8); }
+    } else if (protecting && this.chaos >= 60 && this.rageCd <= 0 && this.state === 'playing') {
+      this.rageT = 6; sfx.rage(); this.shake(0.5);
+      this.banner('RAGE', 'PROTECT MODE — EVEN IF IT KILLS HER', 1.6);
+      this.trans.ring(this.vixen.pos, 0xff1f4f, 0.5, 7, 0.6);
+      const lines: [string, string][] = [['VIXEN', "They're my girls. They are me."], ['LILI', 'Grandma\'s in RAGE — nobody touches her girls.'], ['KAMYRN', "That's Mom's Frenzy. Generation Mayhem."], ['VIXEN', 'Get behind me, baby. Mama\'s here.']];
+      const l = lines[Math.floor(Math.random() * lines.length)]; this.comsLine(l[0], l[1]);
+    }
+  }
+  private paytonDownComs() {
+    this.comsLine('KAMYRN', 'Mom get up! Get up!');
+    this.comsLine('LILI', 'Mom get up, get up!');
   }
   lose() {
     if (this.state !== 'playing') return;
@@ -1232,6 +1657,7 @@ export class Game {
         cam.lookAt(v.pos.x, 1.4, v.pos.z + 4);
         this.world.update(dt, performance.now() / 1000, v.pos);
         this.vixen.syncVisual(dt, 0); this.kailee.syncVisual(dt, 0);
+        for (const al of this.allies) al.a.syncVisual(dt, 0);
       }
       return;
     }
@@ -1275,13 +1701,20 @@ export class Game {
     this.setW('hp-kailee', this.k.downed ? 1 - this.k.downT / 8 : this.kailee.hp / this.kailee.maxHp);
     this.hud['hp-kailee'].classList.toggle('down', this.k.downed);
     this.setT('kailee-status', this.k.downed ? `DOWN ${Math.ceil(this.k.downT)}s` : this.sling.phase !== 'none' ? 'LAUNCHED!' : '');
+    for (const al of this.allies) {
+      this.setW('hp-' + al.key, al.downed ? 1 - al.downT / 8 : al.a.hp / al.a.maxHp);
+      this.hud['hp-' + al.key].classList.toggle('down', al.downed);
+      this.setT(al.key + '-status', al.downed ? `DOWN ${Math.ceil(al.downT)}s` : '');
+    }
     this.setW('chaos-fill', this.chaos / 100);
+    this.setT('frenzy-reason', this.rageT > 0 ? `RAGE ${Math.ceil(this.rageT)}s — PROTECT MODE` : this.frenzyReasonT > 0 ? '▲ ' + this.frenzyReason : 'RISES WHEN THE GIRLS ARE HIT OR THREATENED');
+    this.hud['chaos-wrap'].classList.toggle('rage', this.rageT > 0);
     const full = this.chaos >= 100;
     this.hud['chaos-wrap'].classList.toggle('full', full);
     this.hud['ab-sling'].classList.toggle('ready', full);
     (this.hud['ab-sling'].querySelector('i') as HTMLElement).style.transform = `scaleX(${(1 - this.chaos / 100).toFixed(2)})`;
     (this.hud['ab-cone'].querySelector('i') as HTMLElement).style.transform = `scaleX(${(this.p.coneCd / 1.5).toFixed(2)})`;
-    this.setT('wave-label', this.gateOpen ? 'EXTRACT' : `WAVE ${this.wave + 1}/4`);
+    this.setT('wave-label', (this.level === 2 ? 'L2 · ' : '') + (this.gateOpen ? 'EXTRACT' : `WAVE ${this.wave + 1}/4`));
     const alive = this.enemies.filter((e) => e.state !== 'dead').length;
     this.setT('enemy-count', this.waveActive ? `HOSTILES ${alive}${this.stats.combo > 2 ? `  ·  COMBO x${this.stats.combo}` : ''}` : this.waveCleared ? 'ALL CLEAR' : 'STAND BY');
     const boss = this.enemies.find((e) => e.def.kind === 'falcon' && e.state !== 'dead');
@@ -1305,6 +1738,8 @@ export class Game {
       get slingPhase() { return g.sling.phase; },
       get enemyCount() { return g.enemies.filter((e) => e.state !== 'dead').length; },
       vixen: () => ({ x: g.vixen.pos.x, z: g.vixen.pos.z, speed: g.vixen.speed, hp: g.vixen.hp }),
+      squad: () => [g.vixen, g.kailee, ...g.allies.map((al) => al.a)].map((a) => ({ key: a.key, x: a.pos.x, z: a.pos.z, hp: a.hp, visible: a.cm.root.visible, mesh: !a.cm.procedural, downed: !!g.allyOf(a)?.downed })),
+      damageAlly: (key: string, n: number) => { const al = g.allies.find((x) => x.key === key); if (al) g.hurt(al.a, n, new THREE.Vector3(0, 0, -1), 0, { source: 'enemy' }); },
       kailee: () => ({ x: g.kailee.pos.x, z: g.kailee.pos.z, hp: g.kailee.hp, downed: g.k.downed }),
       enemies: () => g.enemies.map((e) => ({ kind: e.def.kind, hp: e.hp, x: e.pos.x, z: e.pos.z, state: e.state })),
       damageKailee: (n: number) => g.hurt(g.kailee, n, new THREE.Vector3(0, 0, -1), 0, { source: 'enemy' }),
@@ -1318,6 +1753,12 @@ export class Game {
       killAll: () => { for (const e of g.enemies) if (e.state !== 'dead') g.hurt(e, 9999, new THREE.Vector3(0, 0, 1), 1, { source: 'vixen' }); },
       teleport: (x: number, z: number) => { g.vixen.pos.set(x, 0, z); g.p.lastSafe.set(x, 0, z); },
       setInvuln: (s: number) => { g.p.invuln = s; },
+      get level() { return g.level; },
+      get rage() { return g.rageT; },
+      get frenzyReason() { return g.frenzyReason; },
+      skipToL2: () => { g.startLevel2(); g.setState('playing'); },
+      winDock: () => { g.gateOpen = true; g.win(); },
+      downPayton: () => { const al = g.allies.find((x) => x.key === 'payton'); if (al) g.hurt(al.a, 9999, new THREE.Vector3(0, 0, -1), 0, { source: 'enemy' }); },
       assets: () => ({ loaded: Object.keys(Assets.gltf), failed: Assets.failed, clips: Object.keys(Assets.clips) }),
     };
   }

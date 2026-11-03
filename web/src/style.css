@@ -50,9 +50,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; colo
 .ab span { font-size: 13px; color: #fff; }
 .ab i { position: absolute; left: 0; bottom: 0; height: 100%; width: 100%; background: rgba(0,0,0,0.65); transform-origin: left; transform: scaleX(0); }
 .ab.ready { border-color: var(--mag); box-shadow: 0 0 10px var(--mag); }
-#banner { position: absolute; top: 34%; left: 0; right: 0; text-align: center; font-size: 64px; color: #fff; opacity: 0;
+#banner { position: absolute; top: 92px; left: 50%; transform: translateX(-50%); max-width: 70vw; text-align: center; font-size: 26px; color: #fff; opacity: 0; pointer-events: none;
+  background: rgba(0,0,0,0.38); padding: 6px 18px; border-radius: 6px;
   text-shadow: 0 0 20px var(--mag), 0 0 4px #000; transition: opacity 0.3s; letter-spacing: 0.1em; }
-#banner small { display: block; font-size: 22px; color: var(--grn); text-shadow: 0 0 10px var(--grn); letter-spacing: 0.3em; }
+#banner small { display: block; font-size: 13px; margin-top: 2px; color: var(--grn); text-shadow: 0 0 10px var(--grn); letter-spacing: 0.15em; }
 #hint { position: absolute; left: 22px; bottom: 14px; font-family: Arial, sans-serif; font-size: 12px; color: rgba(255,255,255,0.55); letter-spacing: 0; }
 
 .screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(20,0,20,0.55), rgba(0,0,0,0.88)); z-index: 10; }
@@ -112,3 +113,31 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; colo
 @media (max-width: 900px) { .howto-grid { grid-template-columns: 1fr; } .cr-game { font-size: 34px; } }
 
 #hint b { color: #39ff14; }
+
+/* 11-03 playability pass */
+#hint { font-size: 15px; color: rgba(255,255,255,0.8); }
+#sys-btns { position: absolute; top: 14px; right: 50%; transform: translateX(50%); display: flex; gap: 8px; pointer-events: auto; z-index: 5; }
+#sys-btns button { font: 700 13px Arial, sans-serif; color: #fff; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.35); padding: 6px 12px; cursor: pointer; }
+#coms { position: absolute; left: 22px; bottom: 110px; max-width: 420px; font: 600 17px Arial, sans-serif; color: #fff; background: rgba(0,20,10,0.6); border-left: 4px solid var(--grn); padding: 8px 12px; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+#coms b { color: var(--grn); margin-right: 6px; }
+#coms.lili b { color: #ff8ad8; } #coms.lili { border-left-color: #ff8ad8; }
+
+.fill.brianna { background: linear-gradient(90deg, #0a5c36, #1fd18a); }
+.fill.payton { background: linear-gradient(90deg, #5a1fb0, #b98aff); }
+.bar-label.b { color: #1fd18a; } .bar-label.py { color: #b98aff; }
+.ally-status { font-size: 14px; color: #ddd; }
+
+#coms.payton b { color: #c08bff; } #coms.payton { border-left-color: #c08bff; }
+#coms.vixen b { color: #ff1fcf; } #coms.vixen { border-left-color: #ff1fcf; }
+#frenzy-reason { margin-top: 4px; font: 700 13px Arial, sans-serif; letter-spacing: 0.08em; color: #ffd0f4; text-shadow: 0 0 6px #ff1fcf; min-height: 16px; }
+#chaos-wrap.rage #chaos-bar { border-color: #ff2040; box-shadow: 0 0 22px #ff2040; animation: glow 0.2s infinite alternate; }
+#chaos-wrap.rage #chaos-fill { background: linear-gradient(90deg, #ff2040, #ff1fcf, #fff); }
+#chaos-wrap.rage #frenzy-reason { color: #fff; text-shadow: 0 0 10px #ff2040; }
+#cutscene { position: fixed; inset: 0; z-index: 9000; background: #000; overflow: hidden; cursor: pointer; }
+#cutscene img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.8s, transform 7s linear; transform: scale(1.0); }
+#cutscene img.on { opacity: 1; transform: scale(1.08); }
+#cutscene .cap { position: absolute; left: 50%; bottom: 7%; transform: translateX(-50%); max-width: 86vw; text-align: center; color: #fff; font: 700 clamp(20px, 2.8vw, 36px) Arial, sans-serif; text-shadow: 0 2px 6px #000; background: #000a; padding: 10px 22px; border-radius: 8px; }
+#cutscene .cap b { color: #ff5fd8; margin-right: 8px; }
+#cutscene .card { position: absolute; top: 8%; left: 50%; transform: translateX(-50%); color: #fff; font: 900 clamp(26px, 4vw, 56px) Arial, sans-serif; letter-spacing: 0.08em; text-shadow: 0 0 18px #ff1fcf, 0 2px 6px #000; text-align: center; }
+#cutscene .card small { display: block; font-size: 0.45em; color: #ffd0f4; letter-spacing: 0.2em; }
+#cutscene .skip { position: absolute; right: 24px; top: 20px; color: #fffc; font: 700 16px sans-serif; background: #0008; padding: 6px 12px; border-radius: 6px; }

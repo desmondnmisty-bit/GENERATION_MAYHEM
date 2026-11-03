@@ -46,6 +46,51 @@ export class World {
   waterMat!: THREE.MeshStandardMaterial;
   private dust!: THREE.Points;
   private sky!: THREE.Mesh;
+  hemi!: THREE.HemisphereLight;
+  arena: 'dock' | 'hyperdrive' = 'dock';
+  private dockSkyMap: THREE.Texture | null = null;
+  private hdSkyMap: THREE.Texture | null = null;
+  private hdGroup: THREE.Group | null = null;
+  /** Level 2 (Soft Hyperdrive, Misty 11-03): war-dusk sky + olive/amber light + greybox_v001 ring/tower/approach walls beyond the lane. Same skate lane + colliders (greybox is visual-only for now). */
+  setArena(a: 'dock' | 'hyperdrive') {
+    this.arena = a;
+    const hd = a === 'hyperdrive';
+    const m = this.sky.material as THREE.MeshBasicMaterial;
+    if (!this.dockSkyMap && m.map) this.dockSkyMap = m.map;
+    const fog = this.scene.fog as THREE.FogExp2;
+    fog.color.set(hd ? 0x3a2c1c : 0x101c22); fog.density = hd ? 0.0062 : 0.0075;
+    this.hemi.color.set(hd ? 0xd6a060 : 0x5a7f96); this.hemi.groundColor.set(hd ? 0x2a2614 : 0x1a1020);
+    this.moon.color.set(hd ? 0xffb070 : 0xb4d2ea);
+    for (const c of this.fogCols) c.visible = !hd; // no toxic-green dock fog in the army base
+    for (const fm of this.fogMats) (fm as THREE.MeshBasicMaterial).color.set(hd ? 0xffa040 : 0x3cff5a);
+    for (const pl of this.pointLights) pl.color.set(hd ? 0xff9a3a : 0x39ff14);
+    this.scene.environmentIntensity = hd ? 0.8 : 0.55;
+    if (hd) {
+      if (this.hdSkyMap) { m.map = this.hdSkyMap; m.needsUpdate = true; }
+      else new THREE.TextureLoader().load('hyperdrive/sky.jpg', (t) => {
+        t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; t.repeat.set(2, 1); t.offset.y = -0.12;
+        this.hdSkyMap = t; if (this.arena === 'hyperdrive') { m.map = t; m.needsUpdate = true; }
+      });
+      if (!this.hdGroup) {
+        const g = new THREE.Group(); g.name = 'hyperdrive-greybox'; this.hdGroup = g;
+        // Blender -Y approach -> rotate PI so the approach lane runs north along our lane; ring centre lands past the extraction gate.
+        g.rotation.y = Math.PI; g.position.set(0, -0.05, 222); g.scale.set(1.9, 1, 1);
+        this.scene.add(g);
+        import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load('hyperdrive/greybox.glb', (gl) => {
+          gl.scene.traverse((o) => {
+            const me = o as THREE.Mesh; if (!me.isMesh) return;
+            if (/ZONE_Ground|Ground/i.test(me.name) || /Ground/i.test(me.parent?.name ?? '')) { me.visible = false; return; }
+            me.receiveShadow = true;
+          });
+          g.add(gl.scene);
+        }, undefined, (e) => console.warn('[GM] hyperdrive greybox failed', e)));
+      }
+      this.hdGroup.visible = true;
+    } else {
+      if (this.dockSkyMap) { m.map = this.dockSkyMap; m.needsUpdate = true; }
+      if (this.hdGroup) this.hdGroup.visible = false;
+    }
+  }
   private railChev!: THREE.Texture;
   private groundChev!: THREE.Texture;
 
@@ -71,7 +116,7 @@ export class World {
     pm.dispose();
 
     // lights
-    scene.add(new THREE.HemisphereLight(0x5a7f96, 0x1a1020, 1.7));
+    this.hemi = new THREE.HemisphereLight(0x5a7f96, 0x1a1020, 1.7); scene.add(this.hemi);
     const moon = new THREE.DirectionalLight(0xb4d2ea, 2.3);
     moon.position.set(-12, 30, -10);
     moon.castShadow = true;
@@ -596,7 +641,7 @@ export class World {
     this.pointLights.forEach((pl, i) => {
       const s = sorted[i];
       if (!s) { pl.intensity = 0; return; }
-      pl.position.copy(s.a.pos); pl.color.setHex(s.a.color); pl.distance = s.a.dist;
+      pl.position.copy(s.a.pos); pl.color.setHex(this.arena === 'hyperdrive' && s.a.color === 0x39ff14 ? 0xff9a3a : s.a.color); pl.distance = s.a.dist;
       const flick = s.a.color === 0x39ff14 ? 0.85 + Math.sin(t * 7 + i) * 0.1 : 1;
       pl.intensity = s.a.intensity * flick;
     });

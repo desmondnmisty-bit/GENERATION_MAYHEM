@@ -1,0 +1,16 @@
+import puppeteer from 'puppeteer-core';
+const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'] });
+const page = await browser.newPage(); const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
+await page.setViewport({ width: 960, height: 540 });
+await page.goto('http://localhost:4181/?level=2', { waitUntil: 'load' });
+await page.waitForFunction(() => window.__gm && window.__gm.ready, { timeout: 180000 });
+await page.keyboard.press('Space');
+await page.waitForFunction(() => window.__gm.level === 2 && window.__gm.state === 'playing', { timeout: 30000 });
+await page.evaluate(() => window.__gm.setInvuln(999));
+await new Promise(r => setTimeout(r, 12000));
+await page.evaluate(() => window.__gm.teleport(0, 150)); await new Promise(r => setTimeout(r, 3000));
+await page.screenshot({ path: 'shots/l2_far.png' });
+await page.evaluate(() => window.__gm.teleport(0, 0)); await new Promise(r => setTimeout(r, 6000));
+console.log(await page.evaluate(() => JSON.stringify({ lvl: window.__gm.level, en: window.__gm.enemyCount, enemies: window.__gm.game.enemies.map(e => e.squad) })));
+await page.screenshot({ path: 'shots/l2_fight.png' });
+console.log(errs); await browser.close();
