@@ -189,6 +189,7 @@ export class Game {
         const x = X_MIN + 3 + Math.random() * (X_EDGE - X_MIN - 6);
         const z = zone.z0 + 8 + Math.random() * (zone.z1 - zone.z0 - 12);
         if (Math.abs(x) < 3 && z < 6) continue; // keep spawn clear
+        if (this.world.colliders.some((b) => b.active && x > b.minX - 0.8 && x < b.maxX + 0.8 && z > b.minZ - 0.8 && z < b.maxZ + 0.8)) continue;
         const g = new THREE.Group();
         const disk = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, 0.14, 14), rust); disk.position.y = 0.07;
         const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.04, 6, 14), ox); ring.rotation.x = Math.PI / 2; ring.position.y = 0.14;
@@ -1484,8 +1485,8 @@ export class Game {
     const lx = h.load.position.x, ly = h.load.position.y, lz = h.load.position.z;
     for (const a of actors) {
       if (a.hazardCd > 0) continue;
-      // crane load
-      if (Math.abs(a.pos.x - lx) < 1.7 + a.radius && Math.abs(a.pos.z - lz) < 1.1 + a.radius && ly - 0.9 < a.y + 1.8) {
+      // crane load (Dock only)
+      if (this.level !== 2 && Math.abs(a.pos.x - lx) < 1.7 + a.radius && Math.abs(a.pos.z - lz) < 1.1 + a.radius && ly - 0.9 < a.y + 1.8) {
         a.hazardCd = 1.0;
         const dir = tmp.set(Math.sign(h.vx) || 1, 0, (a.pos.z - lz) * 0.3).normalize();
         this.hurt(a, a === this.vixen ? 22 : 30, dir, 18, { source: 'hazard', stagger: 1.0, up: 6, heavy: true });

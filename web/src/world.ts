@@ -51,7 +51,7 @@ export class World {
   private dockSkyMap: THREE.Texture | null = null;
   private hdSkyMap: THREE.Texture | null = null;
   private hdGroup: THREE.Group | null = null;
-  /** Level 2 (Soft Hyperdrive, Misty 11-03): war-dusk sky + olive/amber light + greybox_v001 ring/tower/approach walls beyond the lane. Same skate lane + colliders (greybox is visual-only for now). */
+  /** Level 2 (Soft Hyperdrive, Misty 11-03): war-dusk sky + olive/amber light + greybox_v001 ring/tower/approach walls beyond the lane. Walkable greybox lane with real colliders (buildHyperdriveWalk); ring GLB stays as backdrop. */
   setArena(a: 'dock' | 'hyperdrive') {
     this.arena = a;
     const hd = a === 'hyperdrive';
@@ -86,10 +86,60 @@ export class World {
         }, undefined, (e) => console.warn('[GM] hyperdrive greybox failed', e)));
       }
       this.hdGroup.visible = true;
-    } else {
+    }
+    for (const o of this.dockDress) o.visible = !hd;
+    for (const b of this.dockColliders) b.active = !hd;
+    for (const b of this.hdColliders) b.active = hd;
+    this.hdWalk.visible = hd;
+    for (const p of this.puddles) { p.on = false; p.warn = false; }
+    if (hd) {} else {
       if (this.dockSkyMap) { m.map = this.dockSkyMap; m.needsUpdate = true; }
       if (this.hdGroup) this.hdGroup.visible = false;
     }
+  }
+  private dockDress: THREE.Object3D[] = [];
+  private dockColliders: Box[] = [];
+  private hdColliders: Box[] = [];
+  private hdWalk = new THREE.Group();
+  /** Soft Hyperdrive WALKABLE greybox (L2): greybox_v001 piece vocabulary (APP sandbags/crates, RH ring walls + console banks, COR ribs, CPK console ring)
+   *  laid along the skate lane in lane space, every piece with a real collider. Dock containers/cranes/water/hook/puddles are hidden + their colliders off in L2. */
+  private buildHyperdriveWalk() {
+    const g = this.hdWalk; g.name = 'hyperdrive-walkable'; g.visible = false; this.scene.add(g);
+    const conc = new THREE.MeshStandardMaterial({ color: 0x6b6450, roughness: 0.9, metalness: 0.05 });
+    const olive = new THREE.MeshStandardMaterial({ color: 0x4a4a2a, roughness: 0.85, metalness: 0.2 });
+    const sand = new THREE.MeshStandardMaterial({ color: 0x8a7650, roughness: 1 });
+    const steel = new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.5, metalness: 0.7 });
+    const amber = new THREE.MeshStandardMaterial({ color: 0x221408, emissive: 0xff8a2a, emissiveIntensity: 2.2 });
+    const pink = new THREE.MeshStandardMaterial({ color: 0x220812, emissive: 0xff1f9f, emissiveIntensity: 2.4 });
+    const piece = (mat: THREE.Material, cx: number, cz: number, sx: number, sz: number, h: number, ry = 0, trim?: THREE.Material) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), mat); m.position.set(cx, h / 2, cz); m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; g.add(m);
+      if (trim) { const t = new THREE.Mesh(new THREE.BoxGeometry(sx + 0.04, 0.12, sz + 0.04), trim); t.position.set(cx, h - 0.25, cz); t.rotation.y = ry; g.add(t); }
+      // AABB collider of the (possibly rotated) footprint
+      const c = Math.abs(Math.cos(ry)), s = Math.abs(Math.sin(ry)); const ex = (sx * c + sz * s) / 2, ez = (sx * s + sz * c) / 2;
+      const b: Box = { minX: cx - ex, maxX: cx + ex, minZ: cz - ez, maxZ: cz + ez, h, active: false }; this.colliders.push(b); this.hdColliders.push(b);
+    };
+    // perimeter: base walls (west + east, no quay water in Hyperdrive) + end caps
+    for (let z = -10; z < 182; z += 8) { piece(conc, X_MIN - 1, z + 4, 2, 8, 7, 0, amber); piece(conc, X_EDGE + 0.9, z + 4, 1.6, 8, 7, 0, amber); }
+    piece(conc, 0, -11, 32, 2.6, 7); piece(conc, 0, Z_END + 1.5, 32, 2.6, 7);
+    // APPROACH (-8..40): sandbag nests + crates, zig-zag line
+    const bags: [number, number, number][] = [[-7, 8, 0], [7, 16, 0], [-4, 24, 0.3], [8, 30, -0.3], [-9, 35, 0]];
+    for (const [x, z, r] of bags) piece(sand, x, z, 5, 1.2, 1.0, r);
+    for (const [x, z] of [[-11, 12], [11, 4], [10.8, 22], [-11, 28], [4.5, 37]]) piece(olive, x, z, 1.6, 1.6, 1.5, 0.2);
+    // RING HALL (42..86): inner ring wall arcs around a central core pillar, console banks on the outer ring
+    const rc = 64;
+    piece(steel, 0, rc, 6, 6, 6, Math.PI / 4, pink);
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2; if (i === 0 || i === 5) continue; // N/S openings = the skate line
+      piece(conc, Math.sin(a) * 9.5, rc + Math.cos(a) * 9.5, 5.2, 0.9, 2.4, a, amber);
+    }
+    for (const [x, z] of [[-11.5, 50], [11.5, 50], [-11.5, 78], [11.5, 78]]) piece(olive, x, z, 1.4, 4, 1.2, 0, amber);
+    // CORRIDOR (88..132): structural ribs pinch the lane, debris scrap in the gaps
+    for (let z = 94; z < 132; z += 9) { piece(steel, -10.5, z, 5, 1.2, 5.5, 0, pink); piece(steel, 10.5, z, 5, 1.2, 5.5, 0, pink); }
+    for (const [x, z] of [[-3, 99], [5, 108], [-6, 116], [2, 125]]) piece(olive, x, z, 2.2, 1.4, 0.9, 0.5);
+    // COCKPIT CORE (134..176): console ring round the Hive with four gaps + cockpit walls
+    const cc = 156;
+    for (let i = 0; i < 12; i++) { if (i % 3 === 0) continue; const a = (i / 12) * Math.PI * 2; piece(steel, Math.sin(a) * 7, cc + Math.cos(a) * 7, 3.4, 0.8, 1.1, a, amber); }
+    for (const [x, z] of [[-9, 140], [9, 140], [-10, 170], [10, 170]]) piece(conc, x, z, 4, 1.2, 3, 0, pink);
   }
   private railChev!: THREE.Texture;
   private groundChev!: THREE.Texture;
@@ -128,14 +178,20 @@ export class World {
     for (let i = 0; i < 7; i++) { const pl = new THREE.PointLight(0x39ff14, 0, 14, 1.6); scene.add(pl); this.pointLights.push(pl); }
 
     this.buildGround();
+    const kids0 = new Set(scene.children), col0 = this.colliders.length;
     this.buildWater();
     this.buildContainers();
     this.buildCranes();
     this.buildFog();
     this.buildBrand();
+    this.dockColliders = this.colliders.slice(col0);
+    const kids1 = new Set(scene.children);
     this.buildBarriers();
+    const kids2 = new Set(scene.children);
     this.buildPuddles();
     this.buildHook();
+    for (const o of scene.children) if (!kids0.has(o) && (kids1.has(o) || !kids2.has(o))) this.dockDress.push(o);
+    this.buildHyperdriveWalk();
     this.buildGate();
     this.buildDust();
     this.buildReadability();
@@ -617,7 +673,7 @@ export class World {
     h.load.position.set(hx, hy - 0.2, h.pivot.z); h.load.rotation.z = h.angle;
     h.cable.position.copy(h.pivot); h.cable.rotation.z = h.angle; h.cable.scale.y = h.len - 1.2;
     // puddles: 5 s cycle; 0.7 s warning flicker then 2.6 s live
-    for (const p of this.puddles) {
+    if (this.arena !== 'hyperdrive') for (const p of this.puddles) {
       const c = (t + p.phase) % 5.2;
       p.warn = c > 1.9 && c < 2.6; p.on = c >= 2.6;
       const fl = p.on ? 0.9 + Math.random() * 1.6 : p.warn ? (Math.random() > 0.5 ? 0.8 : 0.05) : 0.05;

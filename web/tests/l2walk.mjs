@@ -1,0 +1,22 @@
+import puppeteer from 'puppeteer-core';
+const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'] });
+const page = await browser.newPage(); const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
+await page.setViewport({ width: 960, height: 540 });
+await page.goto('http://localhost:4181/?level=2', { waitUntil: 'load' });
+await page.waitForFunction(() => window.__gm && window.__gm.ready, { timeout: 180000 });
+await page.keyboard.press('Space');
+await page.waitForFunction(() => window.__gm.level === 2 && window.__gm.state === 'playing', { timeout: 30000 });
+await page.evaluate(() => window.__gm.setInvuln(999));
+const info = await page.evaluate(() => { const W = window.__gm.game.world; return { cols: W.colliders.filter(b => b.active).length, hd: W.hdColliders.filter(b=>b.active).length, dock: W.dockColliders.filter(b=>b.active).length }; });
+console.log(info);
+await page.evaluate(() => { window.__gm.game.world.barriers.forEach(b=>b.box.active=false); window.__gm.teleport(0, 50); });
+await page.keyboard.down('KeyW'); for (let i=0;i<6;i++){ await new Promise(r => setTimeout(r, 2500)); console.log(await page.evaluate(() => [window.__gm.state, window.__gm.game.vixen.pos.x.toFixed(1), window.__gm.game.vixen.pos.z.toFixed(2), window.__gm.game.p.fwdSpeed.toFixed(1)].join(' '))); }
+console.log('sim:', await page.evaluate(() => { const g=window.__gm.game, v=g.vixen, out=[]; for (const [x,z] of [[0,55],[0,88],[0,100],[-10,90],[5,146]]) { v.pos.set(x,0,z); v.y=0; v.vy=0; v.grounded=true; for(let i=0;i<300;i++){ v.vel.set(0,0,10); v.integrate(1/60,g.world.colliders);} out.push(`${x},${z}->${v.pos.x.toFixed(1)},${v.pos.z.toFixed(1)}`);} return out.join(' | '); }));
+console.log('z after skating into ring core:', await page.evaluate(() => window.__gm.game.vixen.pos.z.toFixed(2)));
+await page.screenshot({ path: 'shots/l2_walk_ring.png' });
+await page.keyboard.up('KeyW');
+await page.evaluate(() => window.__gm.teleport(0, 100)); await new Promise(r => setTimeout(r, 2500));
+await page.screenshot({ path: 'shots/l2_walk_corr.png' });
+await page.evaluate(() => window.__gm.teleport(0, 145)); await new Promise(r => setTimeout(r, 2500));
+await page.screenshot({ path: 'shots/l2_walk_core.png' });
+console.log(errs); await browser.close();
