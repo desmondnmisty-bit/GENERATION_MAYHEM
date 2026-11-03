@@ -1,3 +1,4 @@
+import dockNightSkyUrl from './assets/sky/GM_Sky_DockNight_Equirect_PoleFade.png';
 import * as THREE from 'three';
 import { Assets, dockPiece } from './assets';
 
@@ -116,6 +117,16 @@ export class World {
     const sky = new THREE.Mesh(new THREE.SphereGeometry(320, 48, 24), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false }));
     sky.name = 'skybox'; sky.renderOrder = -1; sky.frustumCulled = false;
     this.sky = sky; this.scene.add(sky);
+    // Soft Dock Night equirect (v001). Knobs: ?skyYaw=deg rotates, ?skyV=0..0.3 lifts skyline (raises plate on screen).
+    const q = new URLSearchParams(location.search);
+    const yaw = parseFloat(q.get('skyYaw') ?? '0') * Math.PI / 180;
+    const vOff = parseFloat(q.get('skyV') ?? '0.15');
+    sky.rotation.y = yaw;
+    new THREE.TextureLoader().load(dockNightSkyUrl, (t) => {
+      t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+      t.offset.y = -vOff; t.anisotropy = 4;
+      const m = sky.material as THREE.MeshBasicMaterial; m.map = t; m.needsUpdate = true;
+    });
   }
 
   // Aerial grind rails: twin gantry rails overhead the skate lane, chevrons scroll north = the route.

@@ -1,3 +1,5 @@
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import handgunUrl from './assets/models/vixen_handgun.glb?url';
 import * as THREE from 'three';
 import { Actor, Enemy, ProjectilePool, angleDiff, angleLerp, dirFromYaw, type HitOpts , ENEMY_FINISHERS } from './actors';
 import { Assets } from './assets';
@@ -7,7 +9,7 @@ import { Input } from './input';
 import { GATE_Z, World, X_EDGE, X_MIN, ZONES } from './world';
 
 const C = (h: number) => new THREE.Color(h);
-const COL = { mag: C(0xff1fcf), grn: C(0x39ff14), org: C(0xff8a2b), red: C(0xff2040), cyan: C(0x80e0ff), white: C(0xffffff), yel: C(0xffd040) };
+const COL = { blu: C(0x2a7bff), mag: C(0xff1fcf), grn: C(0x39ff14), org: C(0xff8a2b), red: C(0xff2040), cyan: C(0x80e0ff), white: C(0xffffff), yel: C(0xffd040) };
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3();
 
 type Spawn = 'v' | 'e' | 'f';
@@ -47,7 +49,7 @@ export class Game {
   p = { combo: 0, comboT: 0, atkT: 0, atkDur: 0, atkHit: false, coneCd: 0, spaceT: 0, lastSafe: new THREE.Vector3(), braking: false, brakeSfxT: 0, fwdSpeed: 0, turn: 0, aimYaw: 0, invuln: 0 };
   slingAimYaw = 0;
   sling = { phase: 'none' as 'none' | 'tether' | 'launch' | 'land', t: 0, dir: new THREE.Vector3(), dist: 0, hit: new Set<Enemy>(), firstHit: false };
-  k = { downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null as Enemy | null, retarget: 0, swing: 0, recoverT: 0 };
+  k = { downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null as Enemy | null, retarget: 0, swing: 0, recoverT: 0, slideCd: 4, slideT: 0, slideHits: 0, slideDir: new THREE.Vector3(), slideTgt: null as Enemy | null };
   camYaw = 0; camPitch = 0.18; trauma = 0; hitstop = 0; worldScale = 1; fovKick = 0;
   stats = { time: 0, kos: 0, slingKos: 0, splashKos: 0, maxCombo: 0, slings: 0, combo: 0, comboT: 0 };
   aimRing: THREE.Mesh;
@@ -111,7 +113,7 @@ export class Game {
     this.wave = 0; this.waveActive = false; this.batch = 0; this.waveCleared = false; this.gateOpen = false; this.introT = 1.2;
     this.chaos = 0; this.chaosReadyAnnounced = false;
     this.vixen.hp = this.vixen.maxHp; this.kailee.hp = this.kailee.maxHp;
-    Object.assign(this.k, { downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, recoverT: 0 });
+    Object.assign(this.k, { downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, recoverT: 0, slideCd: 4, slideT: 0, slideHits: 0, slideTgt: null });
     Object.assign(this.p, { combo: 0, comboT: 0, atkT: 0, coneCd: 0, invuln: 0 });
     this.stats = { time: 0, kos: 0, slingKos: 0, splashKos: 0, maxCombo: 0, slings: 0, combo: 0, comboT: 0 };
     this.placeHeroes(-4);
@@ -148,19 +150,29 @@ export class Game {
     const hub = new THREE.MeshStandardMaterial({ color: 0xff1fcf, emissive: 0xff1fcf, emissiveIntensity: 1.6, metalness: 0.8, roughness: 0.25 });
     const red = new THREE.MeshStandardMaterial({ color: 0xc8102e, emissive: 0x500010, metalness: 0.7, roughness: 0.3 });
     const steel = new THREE.MeshStandardMaterial({ color: 0x2a2a30, metalness: 0.9, roughness: 0.35 });
-    const wg = new THREE.TorusGeometry(0.13, 0.065, 10, 20), hg = new THREE.CylinderGeometry(0.08, 0.08, 0.1, 14);
-    for (const sx of [-0.14, 0.14]) for (const z of [-0.2, 0, 0.2]) {
-      const w = new THREE.Mesh(wg, tire); w.rotation.y = Math.PI / 2; w.position.set(sx, 0.17, z); kit.add(w);
-      const h = new THREE.Mesh(hg, hub); h.rotation.z = Math.PI / 2; h.position.copy(w.position); kit.add(h);
+    // BIG BRIGHT ELECTRIC wheels (Misty pt114u): same mount, ~2x size, neon hubs + glowing rim rings + sparks light.
+    const tireGlow = new THREE.MeshStandardMaterial({ color: 0x1a0830, emissive: 0x6a00ff, emissiveIntensity: 0.9, roughness: 0.4, metalness: 0.5 });
+    const neon = new THREE.MeshStandardMaterial({ color: 0x00f6ff, emissive: 0x00f6ff, emissiveIntensity: 3.2, toneMapped: false });
+    const hubHot = new THREE.MeshStandardMaterial({ color: 0xff1fcf, emissive: 0xff1fcf, emissiveIntensity: 3.0, metalness: 0.6, roughness: 0.2, toneMapped: false });
+    const wg = new THREE.TorusGeometry(0.24, 0.1, 12, 28), hg = new THREE.CylinderGeometry(0.15, 0.15, 0.16, 18), rg = new THREE.TorusGeometry(0.3, 0.025, 8, 32);
+    const spokeG = new THREE.BoxGeometry(0.17, 0.03, 0.42);
+    for (const sx of [-0.2, 0.2]) for (const z of [-0.3, 0, 0.3]) {
+      const w = new THREE.Mesh(wg, tireGlow); w.rotation.y = Math.PI / 2; w.position.set(sx, 0.17, z); kit.add(w);
+      const h = new THREE.Mesh(hg, hubHot); h.rotation.z = Math.PI / 2; h.position.copy(w.position); kit.add(h);
+      const r = new THREE.Mesh(rg, neon); r.rotation.y = Math.PI / 2; r.position.copy(w.position); r.position.x += sx > 0 ? 0.06 : -0.06; kit.add(r);
+      for (const a of [0, Math.PI / 2]) { const sp = new THREE.Mesh(spokeG, neon); sp.rotation.x = a; sp.position.copy(w.position); kit.add(sp); }
     }
-    const gun = new THREE.Group(); gun.position.set(0.42, 1.15, 0.15);
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26, 0.7), red); gun.add(body);
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.8, 14), steel); barrel.rotation.x = Math.PI / 2; barrel.position.z = 0.7; gun.add(barrel);
-    const muzzle = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.03, 8, 16), hub); muzzle.position.z = 1.1; gun.add(muzzle);
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.2, 16), steel); drum.rotation.z = Math.PI / 2; drum.position.set(0, -0.12, -0.05); gun.add(drum);
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.23, 0.04, 0.6), hub); strip.position.y = 0.11; gun.add(strip);
-    kit.add(gun);
-    kit.traverse((o) => { (o as THREE.Mesh).castShadow = true; });
+    for (const sx of [-0.2, 0.2]) { const l = new THREE.PointLight(0x00f6ff, 2.5, 2.2); l.position.set(sx, 0.2, 0); kit.add(l); }
+    // Misty-stamped Soft HANDGUN (3D 1102, LOD1) in right hand; replaces procedural cannon.
+    const gun = new THREE.Group(); gun.name = 'vixen-handgun'; gun.position.set(0.42, 1.0, 0.2); kit.add(gun);
+    new GLTFLoader().load(handgunUrl, (g) => {
+      const m = g.scene; const bb = new THREE.Box3().setFromObject(m); const sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+      const s = 0.32 / Math.max(sz.x, sz.y, sz.z); m.position.sub(c).multiplyScalar(s); m.scale.setScalar(s);
+      const holder = new THREE.Group(); holder.add(m); holder.rotation.y = -Math.PI / 2; // barrel (+X) -> forward (+Z)
+      holder.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
+      gun.add(holder);
+    });
+    kit.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
     root.add(kit);
   }
   addChaos(n: number) {
@@ -395,12 +407,12 @@ export class Game {
     const baseAim = inp.locked ? this.camYaw : v.heading;
     p.aimYaw = this.aimAssist(baseAim, 9, inp.locked ? 0.45 : 0.9);
     // attacks
-    if (p.atkT > 0) {
-      p.atkT -= dt;
-      const prog = 1 - p.atkT / p.atkDur;
-      if (!p.atkHit && prog > 0.35) { p.atkHit = true; this.punchHit(); }
+    if (p.atkT > 0) p.atkT -= dt;
+    if (!sling && inp.hit('Mouse0', 'KeyJ') && p.atkT <= 0) {
+      const kp = this.pinnedBy(this.kailee);
+      if (kp && v.pos.distanceTo(kp.pos) < 10) this.partnerCheck(kp); // silent close-range CHECK on Fang
+      else this.startShoot();
     }
-    if (!sling && inp.hit('Mouse0', 'KeyJ') && (p.atkT <= 0 || (p.atkT < p.atkDur * 0.35 && p.atkHit))) this.startPunch();
     if (!sling && inp.hit('Mouse2', 'KeyK') && p.coneCd <= 0) this.sonicCone();
     if (inp.hit('KeyE', 'KeyL')) this.tryShatter();
     if (!sling && this.sling.phase !== 'land') v.integrate(dt, this.world.colliders);
@@ -425,39 +437,18 @@ export class Game {
     if (ready) { this.slingLine.position.set(v.pos.x, 0.04, v.pos.z); this.slingLine.rotation.y = p.aimYaw; (this.slingLine.material as THREE.MeshBasicMaterial).opacity = 0.15 + Math.sin(this.time * 8) * 0.08; }
   }
 
-  private startPunch() {
+  private startShoot() {
     const p = this.p, v = this.vixen;
-    p.combo = p.comboT > 0 ? (p.combo + 1) % 3 : 0;
-    p.atkDur = p.combo === 2 ? 0.4 : 0.26;
-    p.atkT = p.atkDur; p.atkHit = false; p.comboT = p.atkDur + 0.35;
+    p.atkDur = 0.3; p.atkT = p.atkDur; p.atkHit = true;
     v.heading = angleLerp(v.heading, p.aimYaw, 0.85);
-    p.fwdSpeed = Math.max(p.fwdSpeed, 3) + 2;
-    v.anim.once(p.combo === 1 ? 'Check_L' : 'Check_R', p.atkDur + 0.1);
-    if (p.combo === 1) v.punchL = 1; else if (p.combo === 0) v.punchR = 1; else { v.punchL = 1; v.punchR = 1; }
-  }
-  private punchHit() {
-    const p = this.p, v = this.vixen;
-    const heavy = p.combo === 2;
-    const range = heavy ? 3.0 : 2.5;
-    const spdBonus = 1 + Math.min(1, v.speed / 11) * 0.6;
-    const dmg = (heavy ? 24 : 12) * spdBonus;
-    let hits = 0;
-    const fx = dirFromYaw(p.aimYaw, tmp2);
-    for (const e of this.enemies) {
-      if (e.state === 'dead') continue;
-      const dx = e.pos.x - v.pos.x, dz = e.pos.z - v.pos.z, d = Math.hypot(dx, dz);
-      if (d > range + e.radius || Math.abs(e.y - v.y) > 1.6) continue;
-      if (Math.abs(angleDiff(p.aimYaw, Math.atan2(dx, dz))) > 1.3) continue;
-      const dir = tmp.set(dx, 0, dz).normalize().lerp(fx, 0.5).normalize();
-      this.hurt(e, dmg, dir, heavy ? 11 : 5, { source: 'vixen', stagger: heavy ? 0.7 : 0.35, heavy, up: heavy ? 3 : 0 });
-      hits++;
-    }
-    const fist = tmp3.copy(v.pos).addScaledVector(fx, 1.0).setY(v.y + 1.3);
-    if (hits) {
-      sfx.punch(heavy); this.shake(heavy ? 0.3 : 0.12); this.hitstop = heavy ? 0.07 : 0.035;
-      this.trans.vring(fist, fx, 0xff1fcf, 0.2, heavy ? 1.6 : 1.0, 0.18);
-    } else sfx.whiff();
-    this.particles.burst(fist, heavy ? 10 : 5, COL.mag, 3, 0.12, 0.2, 0, 0.3);
+    p.combo = (p.combo + 1) % 2;
+    if (v.anim.has('Check_R')) v.anim.once('Check_R', 0.2);
+    v.punchR = 1;
+    const dir = dirFromYaw(p.aimYaw, new THREE.Vector3()).normalize();
+    const from = new THREE.Vector3().copy(v.pos).setY(v.y + 1.3).addScaledVector(dir, 0.5);
+    this.proj.fire('pistol', from, dir, 55, 14, 'hero', 'vixen');
+    sfx.pistol(); this.shake(0.06);
+    this.particles.burst(from.clone().addScaledVector(dir, 0.3), 5, COL.mag, 3, 0.1, 0.15, 0, 0.2);
   }
   private sonicCone() {
     const p = this.p, v = this.vixen;
@@ -512,7 +503,7 @@ export class Game {
   // ------------------------------------------------------------------ SHATTER-SLINGSHOT
   tryShatter(force = false) {
     if (this.sling.phase !== 'none') return false;
-    if (!force && this.chaos < 100) { this.dmg.spawn(tmp.copy(this.vixen.pos).setY(2.4), 'CHAOS ' + Math.floor(this.chaos) + '% — HIT & KO TO FILL', 'k'); this.banner('SLINGSHOT NOT READY', 'CHAOS ' + Math.floor(this.chaos) + '% — PUNCH, KO, OR LET KAILEE TANK', 1.0); return false; }
+    if (!force && this.chaos < 100) { this.dmg.spawn(tmp.copy(this.vixen.pos).setY(2.4), 'CHAOS ' + Math.floor(this.chaos) + '% — HIT & KO TO FILL', 'k'); this.banner('SLINGSHOT NOT READY', 'CHAOS ' + Math.floor(this.chaos) + '% — SHOOT, KO, OR LET KAILEE TANK', 1.0); return false; }
     if (this.k.downed) { this.banner('KAILEE IS DOWN', 'WAIT FOR HER TO RECOVER', 1.2); return false; }
     const s = this.sling;
     s.phase = 'tether'; s.t = 0; s.hit.clear(); s.dist = 0; s.firstHit = false;
@@ -651,6 +642,8 @@ export class Game {
     if (ks.recoverT > 0) { ks.recoverT -= dt; k.integrate(dt, this.world.colliders); return; }
     if (this.pinnedBy(k)) { k.vel.set(0, 0, 0); k.anim.setBase('Idle_Skate', 1); return; } // pinned: grounded, Vixen must Check the Viper off
     ks.atkCd = Math.max(0, ks.atkCd - dt);
+    ks.slideCd = Math.max(0, ks.slideCd - dt);
+    if (ks.slideT > 0) { this.updateSlideUnder(dt); return; }
     ks.shootCd = Math.max(0, ks.shootCd - dt);
     // regen out of combat
     if (this.time - ks.lastDmg > 5 && k.hp < k.maxHp) k.hp = Math.min(k.maxHp, k.hp + 4 * dt);
@@ -690,7 +683,9 @@ export class Game {
     k.heading = angleLerp(k.heading, faceYaw, Math.min(1, dt * 10));
     // attacks
     if (t && t.state !== 'dead') {
-      if (distT < 2.4 && ks.atkCd <= 0) {
+      if (distT < 2.4 && ks.atkCd <= 0 && ks.slideCd <= 0 && t.state !== 'spawn') {
+        this.startSlideUnder(t, distT);
+      } else if (distT < 2.4 && ks.atkCd <= 0) {
         ks.atkCd = 0.55; ks.swing = 1 - ks.swing;
         k.anim.once(ks.swing ? 'Check_L' : 'Check_R', 0.4);
         if (ks.swing) k.punchL = 1; else k.punchR = 1;
@@ -718,6 +713,49 @@ export class Game {
     k.integrate(dt, this.world.colliders);
     if (k.overWater && k.y < 0.2) this.fallInWater(k);
     if (!k.anim.busy) k.anim.setBase(k.speed > 1.2 ? 'Locomotion_Fwd' : 'Idle_Skate', 0.7 + k.speed / 14);
+  }
+
+  // ------------------------------------------------------------------ Kailee finisher: SLIDE UNDER SLICE (blue, Misty lock 2026-11-02)
+  // phases: approach (normal AI) -> under (0.0-0.32s duck dash through target) -> slice (blue blade hits) -> recover
+  static SLIDE = { cooldown: 7, cdJitter: 2, dur: 0.6, speed: 15, hit1: 22, hit2: 18, hitAt1: 0.2, hitAt2: 0.36 };
+  private startSlideUnder(t: Enemy, dist: number) {
+    const ks = this.k, k = this.kailee, S = Game.SLIDE;
+    ks.slideT = S.dur; ks.slideHits = 0; ks.slideTgt = t;
+    ks.slideCd = S.cooldown + Math.random() * S.cdJitter; ks.atkCd = 0.8;
+    ks.slideDir.set(t.pos.x - k.pos.x, 0, t.pos.z - k.pos.z).normalize();
+    k.heading = Math.atan2(ks.slideDir.x, ks.slideDir.z);
+    sfx.blade(); this.trans.ring(k.pos, 0x2a7bff, 0.25, 2.5, 0.35);
+    void dist;
+  }
+  private updateSlideUnder(dt: number) {
+    const ks = this.k, k = this.kailee, t = ks.slideTgt, S = Game.SLIDE;
+    ks.slideT -= dt;
+    const el = S.dur - ks.slideT;
+    const dashing = el < 0.42;
+    const sp = dashing ? S.speed : S.speed * 0.25;
+    k.vel.set(ks.slideDir.x * sp, k.vel.y, ks.slideDir.z * sp);
+    // duck low: lean back + drop pivot
+    const duck = Math.min(1, el / 0.08) * Math.min(1, Math.max(0, ks.slideT) / 0.15);
+    k.cm.pivot.position.y = -0.55 * duck;
+    k.cm.pivot.rotation.x = -0.7 * duck;
+    // blue blade trail
+    for (let i = 0; i < 3; i++) this.particles.emit(tmp3.copy(k.pos).setY(0.35 + Math.random() * 0.4), tmp2.set((Math.random() - 0.5) * 1.5, Math.random() * 1.2, (Math.random() - 0.5) * 1.5), i % 2 ? COL.blu : COL.cyan, 0.2, 0.3, 1);
+    const hitAt = ks.slideHits === 0 ? S.hitAt1 : S.hitAt2;
+    if (ks.slideHits < 2 && el >= hitAt && t && t.state !== 'dead') {
+      const dmg = ks.slideHits === 0 ? S.hit1 : S.hit2;
+      ks.slideHits++;
+      const dir = tmp2.copy(ks.slideDir).setY(ks.slideHits === 2 ? 0.6 : 0.2).normalize();
+      this.hurt(t, dmg, dir.clone(), 7, { source: 'kailee', stagger: 0.8, color: 0x4aa8ff });
+      const at = tmp3.copy(t.pos).setY(0.9);
+      this.particles.burst(at, 26, COL.cyan, 7, 0.18, 0.45, -4, 1.2);
+      this.particles.burst(at, 18, COL.blu, 5, 0.25, 0.5, -4, 1.2);
+      this.particles.burst(at, 6, COL.white, 3, 0.3, 0.15, 0, 1);
+      this.trans.ring(at, 0x4aa8ff, 0.3, 3.2, 0.3);
+      sfx.blade(); this.shake(0.3); this.hitstop = 0.07;
+      if (ks.slideHits === 1) this.dmg.spawn(tmp3.copy(t.pos).setY(2.4), 'SLIDE UNDER', 'heal'); if (ks.slideHits === 1) this.banner('SLIDE UNDER', 'KAILEE · THERMAL BLADE SLICE', 0.9);
+    } else if (ks.slideHits < 2 && (!t || t.state === 'dead')) ks.slideHits = 2;
+    k.integrate(dt, this.world.colliders);
+    if (ks.slideT <= 0) { ks.slideT = 0; ks.slideTgt = null; k.cm.pivot.position.y = 0; k.cm.pivot.rotation.x = 0; }
   }
 
   // ------------------------------------------------------------------ enemy finishers: Fang · Pink Pounce
@@ -774,7 +812,7 @@ export class Game {
     h.vel.set(0, 0, 0);
     if (h === this.vixen) this.p.fwdSpeed = 0;
     this.shake(0.35); sfx.impact(); this.trans.ring(h.pos, PP.color, 0.4, 3.5, 0.45);
-    this.banner('PINNED!', h === this.vixen ? 'PRESS F — KAILEE CHECKS FANG OFF' : 'PUNCH FANG (J) — CHECK HER OFF KAILEE', 1.4);
+    this.banner('PINNED!', h === this.vixen ? 'PRESS F — KAILEE CHECKS FANG OFF' : 'SHOOT (J) NEAR FANG — CHECK HER OFF KAILEE', 1.4);
   }
   private pinFx(e: Enemy, h: Actor) {
     const g = this.ensurePounceFx(e); g.visible = true; g.position.set(h.pos.x, 0, h.pos.z);
