@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { makeCharacter, setFlash, type CharKey, type CharModel } from './assets';
-import { X_EDGE, X_MIN, type Box } from './world';
+import { X_EDGE, X_MIN, boxTop, type Box } from './world';
 
 const V = () => new THREE.Vector3();
 const _v1 = V(), _v2 = V();
@@ -99,15 +99,32 @@ export class Actor {
   dispose(scene: THREE.Scene) { scene.remove(this.cm.root); this.cm.mixer?.stopAllAction(); }
 
   /** integrate velocity + vertical, resolve against boxes */
+  grindBox: Box | null = null;
+  private rampVy = 0;
   integrate(dt: number, boxes: Box[]) {
     this.pos.x += this.vel.x * dt; this.pos.z += this.vel.z * dt;
-    if (!this.grounded || this.y > 0 || this.vy > 0) {
-      this.vy -= 22 * dt; this.y += this.vy * dt;
-      if (this.y <= 0 && this.pos.x < X_EDGE + 0.3) { this.y = 0; this.vy = 0; if (!this.grounded) { this.grounded = true; this.onLand(); } }
-      else if (this.y > 0) this.grounded = false;
+    // rideable floor (Soft Hyperdrive ramps / kickers / funbox tops / grind rails)
+    let fl = 0; this.grindBox = null;
+    for (const b of boxes) {
+      if (!b.active || !b.ride) continue;
+      const m = b.ride === 'rail' ? 0.35 : 0.05;
+      if (this.pos.x < b.minX - m || this.pos.x > b.maxX + m || this.pos.z < b.minZ || this.pos.z > b.maxZ) continue;
+      const top = boxTop(b, this.pos.z);
+      if (this.y >= top - (b.ride === 'ramp' ? 0.7 : 0.3) && top > fl) { fl = top; this.grindBox = b.ride === 'rail' ? b : null; }
     }
+    const wasG = this.grounded;
+    if (this.grounded && this.vy <= 0 && this.y <= fl + 0.3 && this.y >= fl - 0.75) { this.rampVy = dt > 0 ? (fl - this.y) / dt : 0; this.y = fl; }
+    else if (!this.grounded || this.y > fl || this.vy > 0) {
+      if (wasG && this.vy <= 0 && this.rampVy > 0.5) this.vy = Math.min(9, this.rampVy * 1.15); // kicker launch off the lip
+      this.rampVy = 0;
+      this.vy -= 22 * dt; this.y += this.vy * dt;
+      if (this.y <= fl && (fl > 0 || this.pos.x < X_EDGE + 0.3)) { this.y = fl; this.vy = 0; if (!this.grounded) { this.grounded = true; this.onLand(); } }
+      else if (this.y > fl) this.grounded = false;
+    }
+    if (this.y > 0.02 && this.y > fl + 0.05) this.grounded = false;
     for (const b of boxes) {
       if (!b.active || this.y > b.h) continue;
+      if (b.ride && this.y >= boxTop(b, this.pos.z) - (b.ride === 'ramp' ? 0.75 : 0.35)) continue;
       const cx = Math.max(b.minX, Math.min(this.pos.x, b.maxX));
       const cz = Math.max(b.minZ, Math.min(this.pos.z, b.maxZ));
       const dx = this.pos.x - cx, dz = this.pos.z - cz;

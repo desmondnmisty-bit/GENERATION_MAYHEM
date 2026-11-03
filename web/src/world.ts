@@ -14,7 +14,12 @@ export const ZONES = [
 export const GATE_Z = 172;
 export const Z_END = 178;
 
-export interface Box { minX: number; maxX: number; minZ: number; maxZ: number; h: number; active: boolean }
+export interface Box { minX: number; maxX: number; minZ: number; maxZ: number; h: number; active: boolean; ride?: 'top' | 'ramp' | 'rail'; rampDir?: 1 | -1 }
+/** Soft Hyperdrive rideables: surface height of a rideable box at (x,z); ramps rise along +z (rampDir 1) or -z (-1). */
+export function boxTop(b: Box, z: number) {
+  if (b.ride !== 'ramp') return b.h;
+  const t = (z - b.minZ) / (b.maxZ - b.minZ); return b.h * Math.max(0, Math.min(1, b.rampDir === -1 ? 1 - t : t));
+}
 export interface Puddle { x: number; z: number; r: number; phase: number; on: boolean; warn: boolean; mesh: THREE.Mesh; arcs: THREE.LineSegments; mat: THREE.MeshStandardMaterial }
 export interface Barrier { z: number; box: Box; mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; open: number }
 
@@ -82,7 +87,7 @@ export class World {
             if (/ZONE_Ground|Ground/i.test(me.name) || /Ground/i.test(me.parent?.name ?? '')) { me.visible = false; return; }
             me.receiveShadow = true;
           });
-          g.add(gl.scene);
+          g.add(gl.scene); this.skinHyperdrive(gl.scene);
         }, undefined, (e) => console.warn('[GM] hyperdrive greybox failed', e)));
       }
       this.hdGroup.visible = true;
@@ -101,6 +106,27 @@ export class World {
   private dockColliders: Box[] = [];
   private hdColliders: Box[] = [];
   private hdWalk = new THREE.Group();
+  hdRails: Box[] = [];
+  private hdSkins: { mesh: THREE.Mesh; key: string; sx: number; sz: number; h: number; ry: number }[] = [];
+  private hdSkinned = false;
+  /** Swap plain greybox boxes for real greybox.glb piece meshes (kicker/funbox/sandbag/ring wall/facade), scaled to each collider footprint. */
+  private skinHyperdrive(glb: THREE.Object3D) {
+    if (this.hdSkinned) return; this.hdSkinned = true;
+    const tpl: Record<string, THREE.Mesh> = {};
+    glb.traverse((o) => { const me = o as THREE.Mesh; if (!me.isMesh) return; for (const k of ['DECK_Kicker', 'DECK_FunBox', 'DECK_SandbagLip', 'RH_OuterWall', 'RING_Facade']) if (!tpl[k] && me.name.startsWith(k)) tpl[k] = me; });
+    let n = 0;
+    for (const sk of this.hdSkins) {
+      const t = tpl[sk.key]; if (!t) continue;
+      const geo = t.geometry.clone(); geo.computeBoundingBox(); const bb = geo.boundingBox!; const sz = new THREE.Vector3(); bb.getSize(sz);
+      const c = new THREE.Vector3(); bb.getCenter(c); geo.translate(-c.x, -bb.min.y, -c.z);
+      // Blender Y-up export: longest horizontal axis -> along piece x
+      if (sz.z > sz.x !== sk.sz > sk.sx) { geo.rotateY(Math.PI / 2); const t2 = sz.x; sz.x = sz.z; sz.z = t2; }
+      geo.scale(sk.sx / Math.max(0.01, sz.x), sk.h / Math.max(0.01, sz.y), sk.sz / Math.max(0.01, sz.z));
+      if (sk.key === 'DECK_Kicker') continue; // wedge collider shape must match exactly; keep authored wedge
+      const old = sk.mesh; old.geometry.dispose(); old.geometry = geo; old.position.y = 0; n++;
+    }
+    console.info('[GM] hyperdrive skins', n, Object.keys(tpl));
+  }
   /** Soft Hyperdrive WALKABLE greybox (L2): greybox_v001 piece vocabulary (APP sandbags/crates, RH ring walls + console banks, COR ribs, CPK console ring)
    *  laid along the skate lane in lane space, every piece with a real collider. Dock containers/cranes/water/hook/puddles are hidden + their colliders off in L2. */
   private buildHyperdriveWalk() {
@@ -111,35 +137,63 @@ export class World {
     const steel = new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.5, metalness: 0.7 });
     const amber = new THREE.MeshStandardMaterial({ color: 0x221408, emissive: 0xff8a2a, emissiveIntensity: 2.2 });
     const pink = new THREE.MeshStandardMaterial({ color: 0x220812, emissive: 0xff1f9f, emissiveIntensity: 2.4 });
-    const piece = (mat: THREE.Material, cx: number, cz: number, sx: number, sz: number, h: number, ry = 0, trim?: THREE.Material) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), mat); m.position.set(cx, h / 2, cz); m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; g.add(m);
+    const piece = (mat: THREE.Material, cx: number, cz: number, sx: number, sz: number, h: number, ry = 0, trim?: THREE.Material, skin?: string, ride?: Box['ride']) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), mat); if (skin) this.hdSkins.push({ mesh: m, key: skin, sx, sz, h, ry }); m.position.set(cx, h / 2, cz); m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; g.add(m);
       if (trim) { const t = new THREE.Mesh(new THREE.BoxGeometry(sx + 0.04, 0.12, sz + 0.04), trim); t.position.set(cx, h - 0.25, cz); t.rotation.y = ry; g.add(t); }
       // AABB collider of the (possibly rotated) footprint
       const c = Math.abs(Math.cos(ry)), s = Math.abs(Math.sin(ry)); const ex = (sx * c + sz * s) / 2, ez = (sx * s + sz * c) / 2;
-      const b: Box = { minX: cx - ex, maxX: cx + ex, minZ: cz - ez, maxZ: cz + ez, h, active: false }; this.colliders.push(b); this.hdColliders.push(b);
+      const b: Box = { minX: cx - ex, maxX: cx + ex, minZ: cz - ez, maxZ: cz + ez, h, active: false, ride }; this.colliders.push(b); this.hdColliders.push(b);
+      return b;
     };
+    // RIDEABLES: kicker = wedge rising north (+z), launch off the lip; rail = thin grind bar; box = funbox/ledge you land on top of.
+    const wedge = (cx: number, cz: number, w: number, len: number, h: number, dir: 1 | -1 = 1) => {
+      const geo = new THREE.BufferGeometry(); const x0 = -w / 2, x1 = w / 2, z0 = -len / 2, z1 = len / 2;
+      const lo = dir === 1 ? z0 : z1, hi = dir === 1 ? z1 : z0;
+      const v = [x0,0,lo, x1,0,lo, x1,h,hi, x0,0,lo, x1,h,hi, x0,h,hi, x0,0,hi, x0,h,hi, x1,h,hi, x0,0,hi, x1,h,hi, x1,0,hi, x0,0,lo, x0,h,hi, x0,0,hi, x1,0,lo, x1,0,hi, x1,h,hi];
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, kick); m.material.side = THREE.DoubleSide; m.position.set(cx, 0, cz); m.castShadow = m.receiveShadow = true; g.add(m);
+      this.hdSkins.push({ mesh: m, key: 'DECK_Kicker', sx: w, sz: len, h, ry: dir === 1 ? 0 : Math.PI });
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, 0.18), amber); stripe.position.set(cx, h, cz + (hi)); g.add(stripe);
+      const b: Box = { minX: cx - w / 2, maxX: cx + w / 2, minZ: cz - len / 2, maxZ: cz + len / 2, h, active: false, ride: 'ramp', rampDir: dir }; this.colliders.push(b); this.hdColliders.push(b);
+    };
+    const rail = (cx: number, z0: number, z1: number, h = 0.75) => {
+      const len = z1 - z0, cz = (z0 + z1) / 2;
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, len, 8), railMat); bar.rotation.x = Math.PI / 2; bar.position.set(cx, h, cz); g.add(bar);
+      for (let z = z0 + 0.3; z <= z1; z += 3) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, h, 0.1), steel); post.position.set(cx, h / 2, z); g.add(post); }
+      const b: Box = { minX: cx - 0.12, maxX: cx + 0.12, minZ: z0, maxZ: z1, h, active: false, ride: 'rail' }; this.colliders.push(b); this.hdColliders.push(b); this.hdRails.push(b);
+    };
+    const kick = new THREE.MeshStandardMaterial({ color: 0x5a5440, roughness: 0.8, metalness: 0.1 });
+    const railMat = new THREE.MeshStandardMaterial({ color: 0xffb070, emissive: 0xff7a1a, emissiveIntensity: 1.2, metalness: 0.9, roughness: 0.25 });
     // perimeter: base walls (west + east, no quay water in Hyperdrive) + end caps
     for (let z = -10; z < 182; z += 8) { piece(conc, X_MIN - 1, z + 4, 2, 8, 7, 0, amber); piece(conc, X_EDGE + 0.9, z + 4, 1.6, 8, 7, 0, amber); }
     piece(conc, 0, -11, 32, 2.6, 7); piece(conc, 0, Z_END + 1.5, 32, 2.6, 7);
     // APPROACH (-8..40): sandbag nests + crates, zig-zag line
     const bags: [number, number, number][] = [[-7, 8, 0], [7, 16, 0], [-4, 24, 0.3], [8, 30, -0.3], [-9, 35, 0]];
-    for (const [x, z, r] of bags) piece(sand, x, z, 5, 1.2, 1.0, r);
-    for (const [x, z] of [[-11, 12], [11, 4], [10.8, 22], [-11, 28], [4.5, 37]]) piece(olive, x, z, 1.6, 1.6, 1.5, 0.2);
+    for (const [x, z, r] of bags) piece(sand, x, z, 5, 1.2, 0.9, r, undefined, 'DECK_SandbagLip', 'top');
+    wedge(0, 4, 3, 4, 1.1); piece(conc, 0, 8.5, 3, 5, 1.1, 0, amber, 'DECK_FunBox', 'top'); wedge(0, 13, 3, 4, 1.1, -1);
+    rail(-3, 18, 32); rail(3.5, 40, 47); wedge(3.5, 37, 2.4, 3.5, 0.8);
+    for (const [x, z] of [[-11, 12], [11, 4], [10.8, 22], [-11, 28], [7, 33]]) piece(olive, x, z, 1.6, 1.6, 1.5, 0.2);
     // RING HALL (42..86): inner ring wall arcs around a central core pillar, console banks on the outer ring
     const rc = 64;
-    piece(steel, 0, rc, 6, 6, 6, Math.PI / 4, pink);
+    piece(steel, 0, rc, 6, 6, 6, Math.PI / 4, pink, 'RING_Facade');
+    // skateable ring path: funbox ledges ride the ring E/W of the core, kicker in + out through the N/S openings
+    piece(conc, -6.2, rc, 2.2, 7, 0.9, 0, amber, 'DECK_FunBox', 'top'); piece(conc, 6.2, rc, 2.2, 7, 0.9, 0, amber, 'DECK_FunBox', 'top');
+    wedge(-6.2, rc - 4.75, 2.2, 1.5, 0.9); wedge(6.2, rc - 4.75, 2.2, 1.5, 0.9); wedge(-6.2, rc + 4.75, 2.2, 1.5, 0.9, -1); wedge(6.2, rc + 4.75, 2.2, 1.5, 0.9, -1);
+    wedge(0, 51, 3, 3.5, 0.9); rail(-7, 44, 53); rail(7, 75, 85);
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2; if (i === 0 || i === 5) continue; // N/S openings = the skate line
-      piece(conc, Math.sin(a) * 9.5, rc + Math.cos(a) * 9.5, 5.2, 0.9, 2.4, a, amber);
+      piece(conc, Math.sin(a) * 9.5, rc + Math.cos(a) * 9.5, 5.2, 0.9, 2.4, a, amber, 'RH_OuterWall');
     }
     for (const [x, z] of [[-11.5, 50], [11.5, 50], [-11.5, 78], [11.5, 78]]) piece(olive, x, z, 1.4, 4, 1.2, 0, amber);
     // CORRIDOR (88..132): structural ribs pinch the lane, debris scrap in the gaps
     for (let z = 94; z < 132; z += 9) { piece(steel, -10.5, z, 5, 1.2, 5.5, 0, pink); piece(steel, 10.5, z, 5, 1.2, 5.5, 0, pink); }
-    for (const [x, z] of [[-3, 99], [5, 108], [-6, 116], [2, 125]]) piece(olive, x, z, 2.2, 1.4, 0.9, 0.5);
+    for (const [x, z] of [[-5, 99], [5, 108], [-6, 116], [5, 125]]) piece(olive, x, z, 2.2, 1.4, 0.9, 0.5, undefined, 'DECK_FunBox', 'top');
+    rail(0, 92, 120, 0.8); wedge(0, 90.5, 2.2, 3, 0.85); wedge(2.5, 128, 3, 4, 1.2);
     // COCKPIT CORE (134..176): console ring round the Hive with four gaps + cockpit walls
     const cc = 156;
-    for (let i = 0; i < 12; i++) { if (i % 3 === 0) continue; const a = (i / 12) * Math.PI * 2; piece(steel, Math.sin(a) * 7, cc + Math.cos(a) * 7, 3.4, 0.8, 1.1, a, amber); }
-    for (const [x, z] of [[-9, 140], [9, 140], [-10, 170], [10, 170]]) piece(conc, x, z, 4, 1.2, 3, 0, pink);
+    for (let i = 0; i < 12; i++) { if (i % 3 === 0) continue; const a = (i / 12) * Math.PI * 2; piece(steel, Math.sin(a) * 7, cc + Math.cos(a) * 7, 3.4, 0.8, 1.0, a, amber, 'DECK_FunBox', 'top'); }
+    for (const [x, z] of [[-9, 140], [9, 140], [-10, 170], [10, 170]]) piece(conc, x, z, 4, 1.2, 3, 0, pink, 'RH_OuterWall');
+    rail(-4, 138, 146, 0.8); rail(4, 166, 174, 0.8); wedge(0, 143, 3, 3.5, 1.0);
   }
   private railChev!: THREE.Texture;
   private groundChev!: THREE.Texture;

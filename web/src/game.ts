@@ -149,10 +149,10 @@ export class Game {
     Object.assign(this.p, { combo: 0, comboT: 0, atkT: 0, coneCd: 0, invuln: 0 });
     this.stats = { time: 0, kos: 0, slingKos: 0, splashKos: 0, maxCombo: 0, slings: 0, combo: 0, comboT: 0 };
     this.placeHeroes(-4);
-    this.spawnMines(); this.comsCd = {}; this.lowHpCd = 0;
+    this.comsCd = {}; this.lowHpCd = 0;
     setTimeout(() => this.coms('COM_KAM_01'), 1500); setTimeout(() => this.coms('COM_LIL_01'), 5600);
     this.hushVoice(); this.lastGirlHurtT = -99;
-    this.level = 1; this.world.setArena('dock'); this.rageT = 0; this.rageCd = 0; this.frenzyReason = ''; this.viperSeq = 0;
+    this.level = 1; this.world.setArena('dock'); this.spawnMines(); // after arena swap: Hyperdrive colliders off before Dock mines check placement this.rageT = 0; this.rageCd = 0; this.frenzyReason = ''; this.viperSeq = 0;
     sfx.setArena('dock');
     this.setObjective('Skate the green rail north — clear Berth 1');
     this.hud['boss'].classList.add('hidden');
@@ -174,6 +174,7 @@ export class Game {
   setState(s: GameState) { this.state = s; this.onStateChange(s); }
 
   // ------------------------------------------------------------------ land mines (Misty 11-03)
+  private grinding = false;
   mines: { x: number; z: number; mesh: THREE.Group; armT: number; live: boolean }[] = [];
   private craters: THREE.Mesh[] = [];
   private spawnMines() {
@@ -625,6 +626,11 @@ export class Game {
     if (!sling && inp.hit('Mouse2', 'KeyK') && p.coneCd <= 0) this.sonicCone();
     if (inp.hit('KeyE', 'KeyL')) this.tryShatter();
     if (!sling && this.sling.phase !== 'land') v.integrate(dt, this.world.colliders);
+    // GRIND (Soft Hyperdrive rails): lock to the bar, keep speed up, sparks
+    if (v.grindBox && v.grounded) {
+      const gb = v.grindBox, cx = (gb.minX + gb.maxX) / 2; v.pos.x += (cx - v.pos.x) * Math.min(1, dt * 12);
+      p.fwdSpeed = Math.max(p.fwdSpeed, 7.5); if (!this.grinding) { this.grinding = true; sfx.hop(); this.stats.combo++; this.stats.comboT = 2; }
+    } else this.grinding = false;
     // water
     if (v.overWater && v.y < 0.2) this.fallInWater(v);
     else if (v.grounded && v.pos.x < X_EDGE - 1.2) p.lastSafe.copy(v.pos);
