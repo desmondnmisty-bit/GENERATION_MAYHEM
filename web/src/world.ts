@@ -3,8 +3,13 @@ import dockNightSkyUrl from './assets/sky/GM_Sky_DockNight_Equirect_PoleFade.png
 import * as THREE from 'three';
 import { Assets, dockPiece } from './assets';
 
-export const X_MIN = -18;      // west container wall face
-export const X_EDGE = 18;    // quay edge (water beyond)
+/** Live playable X — Dock widened (Misty 1104); HyperDrive clamps to greybox until Soft space-age redo. Mutable so setArena swaps them (ES live bindings). */
+export let X_MIN = -18;      // west container wall face (Dock)
+export let X_EDGE = 18;    // quay edge (water beyond)
+export const X_MIN_DOCK = -18;
+export const X_EDGE_DOCK = 18;
+export const X_MIN_HD = -12;   // Soft greybox stand-in width (pre–Pink Viper redo)
+export const X_EDGE_HD = 12;
 export const Z_START = -6;
 export const ZONES = [
   { z0: -8, z1: 40, barrier: 42, name: 'BERTH 1' },
@@ -61,6 +66,9 @@ export class World {
   setArena(a: 'dock' | 'hyperdrive') {
     this.arena = a;
     const hd = a === 'hyperdrive';
+    // Clamp playable X per arena so L2 doesn't spill past Soft greybox after Dock widen
+    X_MIN = hd ? X_MIN_HD : X_MIN_DOCK;
+    X_EDGE = hd ? X_EDGE_HD : X_EDGE_DOCK;
     const m = this.sky.material as THREE.MeshBasicMaterial;
     if (!this.dockSkyMap && m.map) this.dockSkyMap = m.map;
     const fog = this.scene.fog as THREE.FogExp2;
