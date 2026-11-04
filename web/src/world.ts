@@ -20,7 +20,7 @@ export const ZONES = [
 export const GATE_Z = 172;
 export const Z_END = 178;
 
-export interface Box { minX: number; maxX: number; minZ: number; maxZ: number; h: number; active: boolean; ride?: 'top' | 'ramp' | 'rail'; rampDir?: 1 | -1 }
+export interface Box { minX: number; maxX: number; minZ: number; maxZ: number; h: number; active: boolean; ride?: 'top' | 'ramp' | 'rail'; rampDir?: 1 | -1; minY?: number }
 /** Soft Hyperdrive rideables: surface height of a rideable box at (x,z); ramps rise along +z (rampDir 1) or -z (-1). */
 export function boxTop(b: Box, z: number) {
   if (b.ride !== 'ramp') return b.h;
@@ -483,6 +483,42 @@ export class World {
         const c = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), crate); c.position.set(dx, h / 2, zone.z0 + dz); c.castShadow = c.receiveShadow = true; g.add(c);
         this.pocketBoxes.push(this.addBox(dx, zone.z0 + dz, sx, sz, h));
       }
+    }
+    // DOCK VERTICAL + SKY RAILWAYS (Misty voice lock 1104 pm): gun-angle towers + elevated rails you can physically get on (ramp access),
+    // rail end drops onto a bridge that joins the east catwalk. Everything elevated is walk-under (minY) so berth routes stay open.
+    const skyMat = new THREE.MeshStandardMaterial({ color: 0xffd040, emissive: 0xff9a1a, emissiveIntensity: 1.4, metalness: 0.9, roughness: 0.25 });
+    const steelD = new THREE.MeshStandardMaterial({ color: 0x3a3e44, roughness: 0.5, metalness: 0.8 });
+    const RH = 4.4, rx = 8;
+    const ramp = (cx: number, z0: number, len: number, h: number, w: number, mat: THREE.Material) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.18, Math.hypot(len, h)), mat); m.position.set(cx, h / 2, z0 + len / 2); m.rotation.x = -Math.atan2(h, len); m.castShadow = m.receiveShadow = true; g.add(m);
+      for (let i = 1; i < 6; i++) { const st = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, 0.12), trim); st.position.set(cx, (i / 6) * h + 0.06, z0 + (i / 6) * len); g.add(st); }
+      const rb = this.addBox(cx, z0 + len / 2, w, len, h); rb.ride = 'ramp'; rb.rampDir = 1; this.pocketBoxes.push(rb);
+    };
+    for (const zone of ZONES) {
+      const zr0 = zone.z0 + 4, rampL = 10, z1r = zone.z0 + 14, z2r = zone.z1 - 9;
+      ramp(rx, zr0, rampL, RH, 2.4, plank);
+      // rail + support gantries
+      const len = z2r - z1r, cz = (z1r + z2r) / 2;
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, len, 8), skyMat); bar.rotation.x = Math.PI / 2; bar.position.set(rx, RH, cz); g.add(bar);
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, len), steelD); deck.position.set(rx, RH - 0.35, cz); g.add(deck);
+      for (let z = z1r; z <= z2r + 0.01; z += len / 3) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.3, RH - 0.4, 0.3), scaf); post.position.set(rx, (RH - 0.4) / 2, z); g.add(post); const xb = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.15, 0.15), scaf); xb.position.set(rx, RH - 0.45, z); g.add(xb); }
+      const rb = this.addBox(rx, cz, 0.24, len, RH); rb.ride = 'rail'; rb.minY = RH - 0.6; this.pocketBoxes.push(rb);
+      // posts are real colliders (thin)
+      for (let z = z1r; z <= z2r + 0.01; z += len / 3) this.pocketBoxes.push(this.addBox(rx, z, 0.3, 0.3, RH - 0.4));
+      // bridge from rail end → east catwalk (2.4): drop off the rail onto it
+      const bz = z2r + 2.5, bx0 = rx - 0.6, bx1 = 15.2, bw = bx1 - bx0, bcx = (bx0 + bx1) / 2;
+      const bt = new THREE.Mesh(new THREE.BoxGeometry(bw, 0.25, 3), plank); bt.position.set(bcx, cwH - 0.12, bz); bt.castShadow = bt.receiveShadow = true; g.add(bt);
+      for (const px of [bx0 + 0.2, bcx]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.16, cwH, 0.16), scaf); p.position.set(px, cwH / 2, bz); g.add(p); }
+      const bb = this.addBox(bcx, bz, bw, 3, cwH); bb.ride = 'top'; bb.minY = cwH - 0.3; this.pocketBoxes.push(bb);
+      // east catwalk extension so the bridge always lands on catwalk (zone catwalk is z1-13..z1-5)
+    }
+    // gun-angle towers: elevated platforms ~7m from each of the 4 Dock edge guns (Brianna gauntlet / Vixen shots from height). Not on the berth line.
+    for (const [x, z, h] of [[11, 12, 3.0], [-10.5, 60, 3.0], [11, 106, 3.0], [-10.5, 146, 3.0]] as const) {
+      const top = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 4), plank); top.position.set(x, h - 0.15, z); top.castShadow = top.receiveShadow = true; g.add(top);
+      for (const [dx, dz] of [[-1.3, -1.8], [1.3, -1.8], [-1.3, 1.8], [1.3, 1.8]]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.18, h, 0.18), scaf); p.position.set(x + dx, h / 2, z + dz); g.add(p); }
+      const rl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 4), trim); rl.position.set(x + Math.sign(x) * 1.45, h + 0.9, z); g.add(rl);
+      const tb = this.addBox(x, z, 3, 4, h); tb.ride = 'top'; tb.minY = h - 0.4; this.pocketBoxes.push(tb);
+      ramp(x, z - 2 - 6, 6, h, 3, plank);
     }
     // civilians (ambient, not cast/combatants): dock workers in lived-in spots — hi-vis vests, idle bob/work loop
     for (const [x, z, ry, vest] of [[-16.5, 58, Math.PI / 2, 0xff8a1a], [16.6, 100, -Math.PI / 2, 0xe8e03a], [-15.8, 142, Math.PI / 2, 0xff8a1a]] as const) this.addCiv(g, x, z, ry, vest, 0x2a3440);

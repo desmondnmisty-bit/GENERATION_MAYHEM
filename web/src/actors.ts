@@ -124,6 +124,7 @@ export class Actor {
     if (this.y > 0.02 && this.y > fl + 0.05) this.grounded = false;
     for (const b of boxes) {
       if (!b.active || this.y > b.h) continue;
+      if (b.minY !== undefined && this.y + 1.7 < b.minY) continue; // elevated (sky rail / bridge): walk underneath
       if (b.ride && this.y >= boxTop(b, this.pos.z) - (b.ride === 'ramp' ? 0.75 : 0.35)) continue;
       const cx = Math.max(b.minX, Math.min(this.pos.x, b.maxX));
       const cz = Math.max(b.minZ, Math.min(this.pos.z, b.maxZ));

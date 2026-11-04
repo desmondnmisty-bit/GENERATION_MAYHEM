@@ -103,7 +103,7 @@ export class Game {
       this.allies.push({ a, key, name, col, role, side, back, downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, retarget: 0, recoverT: 0, swing: 0, sigCd: 4 + Math.random() * 2, sigT: 0, sigShot: 0 });
     }
     for (const al of this.allies) this.addAllyKit(al);
-    this.vixen.onLand = () => { sfx.land(); this.vixen.squash = 0.6; this.particles.burst(tmp.copy(this.vixen.pos).setY(0.1), 6, COL.grn, 2, 0.12, 0.3, -3, 0.2); };
+    this.vixen.onLand = () => { if (this.diving) this.diveCrush(); sfx.land(); this.vixen.squash = 0.6; this.particles.burst(tmp.copy(this.vixen.pos).setY(0.1), 6, COL.grn, 2, 0.12, 0.3, -3, 0.2); };
     this.vixen.onWallHit = (imp) => { if (imp > 6) { this.shake(0.25); sfx.clang(); this.vixen.squash = 0.5; } };
     // aim ring + slingshot aim line
     this.aimRing = new THREE.Mesh(new THREE.RingGeometry(0.35, 0.5, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff1fcf, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
@@ -136,7 +136,7 @@ export class Game {
     k.pos.set(2, 0, z - 2.5); k.vel.set(0, 0, 0); k.heading = 0; k.y = 0; k.vy = 0; k.grounded = true; k.alive = true;
     k.cm.pivot.rotation.x = 0; k.cm.pivot.position.y = 0;
     for (const al of this.allies) { const a = al.a; a.pos.set(al.side, 0, z - al.back); a.vel.set(0, 0, 0); a.heading = 0; a.y = 0; a.vy = 0; a.grounded = true; a.alive = true; a.cm.pivot.rotation.x = 0; a.cm.pivot.position.y = 0; }
-    this.p.fwdSpeed = 0; this.p.lastSafe.copy(v.pos); this.camYaw = 0;
+    this.p.fwdSpeed = 0; this.p.lastSafe.copy(v.pos); this.camYaw = 0; this.diving = false;
     this.camera.position.set(0, 3, z - 7);
   }
   resetRun() {
@@ -783,6 +783,7 @@ export class Game {
 
   private startShoot() {
     const p = this.p, v = this.vixen;
+    if (!v.grounded && v.y > 1.6 && !this.diving) { this.startDive(); return; }
     p.atkDur = 0.3; p.atkT = p.atkDur; p.atkHit = true;
     v.heading = angleLerp(v.heading, p.aimYaw, 0.85);
     p.combo = (p.combo + 1) % 2;
@@ -2049,6 +2050,37 @@ export class Game {
     if (scr) { const h = scr.querySelector('h2'); const sub = scr.querySelector('.sub'); if (h) { h.textContent = 'NOBODY WINS'; h.classList.remove('win'); } if (sub) sub.textContent = 'Slither escaped through the dome. Squad worse for wear. HyperDrive isn\'t over.'; }
     sfx.lose(); this.hushVoice();
     this.setState('win');
+  }
+  // ------------------------------------------------------------------ DIVE CRUSH (Misty 1104 pm): attack while airborne off a sky rail / tower → slam onto enemies below
+  diving = false; private diveH = 0;
+  private startDive() {
+    const v = this.vixen; this.diving = true; this.diveH = v.y;
+    v.vy = -30; this.p.fwdSpeed *= 0.35; this.fovKick = 6; sfx.tether();
+    this.banner('', 'DIVE!', 0.5);
+    this.particles.emit(tmp3.copy(v.pos).setY(v.y + 1), tmp.set(0, 6, 0), new THREE.Color(0xffd040), 0.5, 0.4);
+  }
+  private diveCrush() {
+    this.diving = false;
+    const v = this.vixen, R = 3.8 + Math.min(2, this.diveH * 0.35);
+    let n = 0;
+    for (const e of this.enemies) {
+      if (e.state === 'dead') continue;
+      const dx = e.pos.x - v.pos.x, dz = e.pos.z - v.pos.z, d = Math.hypot(dx, dz);
+      if (d > R) continue;
+      const dir = tmp.set(dx, 0, dz).normalize(); n++;
+      this.hurt(e, Math.round((d < 1.6 ? 70 : 40) * (1 + this.diveH * 0.08)), dir, 16, { source: 'vixen', stagger: 1.4, up: 7, heavy: true, color: 0xffd040 });
+    }
+    for (const t of this.turrets) if (t.alive && Math.hypot(t.x - v.pos.x, t.z - v.pos.z) < R) t.hp -= 40;
+    sfx.impact(); sfx.punch(true); sfx.clang();
+    this.shake(0.9); this.hitstop = n ? 0.11 : 0.05; this.fovKick = -4;
+    this.particles.burst(tmp3.copy(v.pos).setY(0.15), 34, new THREE.Color(0xffd040), 9, 0.25, 0.7, -14, 0.6);
+    this.particles.burst(tmp3.copy(v.pos).setY(0.3), 18, new THREE.Color(0x8a7a6a), 6, 0.3, 0.9, -18, 0.4);
+    { const fl = this.hud['fx-flash']; fl.style.background = '#fff3c0'; fl.style.opacity = '0.6'; setTimeout(() => { fl.style.opacity = '0'; setTimeout(() => { fl.style.background = ''; }, 250); }, 60); }
+    if (n) { this.trick(n > 1 ? `DIVE CRUSH ×${n}` : 'DIVE CRUSH', 200 * n); this.addChaos(6 * n, 'DIVE CRUSH'); }
+    // shockwave ring
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.9, 40), new THREE.MeshBasicMaterial({ color: 0xffd040, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(v.pos.x, 0.08, v.pos.z); this.scene.add(ring);
+    const t0 = performance.now(); const tick = () => { const k = (performance.now() - t0) / 380; if (k >= 1) { this.scene.remove(ring); return; } ring.scale.setScalar(1 + k * R * 1.2); (ring.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - k); requestAnimationFrame(tick); }; tick();
   }
   /** LEVEL 2: HyperDrive — Pink Viper spacey-tech den (Soft greybox until rebuild; army look REJECTED). */
   startLevel2() {
