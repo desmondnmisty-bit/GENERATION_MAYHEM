@@ -70,7 +70,7 @@ function onState(s: GameState) {
   if (s === 'win') { show('screen-win'); $('win-stats').innerHTML = game!.statsHtml(); input.exitLock(); sfx.stopMusic(); }
   if (s === 'lose') { show('screen-lose'); $('lose-stats').innerHTML = game!.statsHtml(); input.exitLock(); sfx.stopMusic(); }
   if (s === 'title') { show('screen-title'); input.exitLock(); sfx.stopMusic(); }
-  if (s === 'cutscene') { show(null); input.exitLock(); playDockToHyperdrive().then(() => { if (!game) return; game.startLevel2(); game.setState('playing'); input.requestLock(); canvas.focus(); }); }
+  if (s === 'cutscene') { try { localStorage.setItem('gm_l2_unlocked', '1'); } catch { /* */ } show(null); input.exitLock(); playDockToHyperdrive().then(() => { if (!game) return; game.startLevel2(); game.setState('playing'); input.requestLock(); canvas.focus(); }); }
 }
 
 // ---- Dock → Hyperdrive cutscene (storyboard v001 plates; P04/P05/P08 re-done v003: Soft small handgun, blue blades, readable wing).
@@ -137,7 +137,7 @@ function pause() { if (game && game.state === 'playing') game.setState('paused')
 // ---- button wiring (bound exactly once) ----
 $('btn-play').addEventListener('click', () => startPlaying('new'));
 // LEVEL 2 debug/skip: title button or ?level=2 (Shift+click = skip cutscene)
-$('btn-l2').addEventListener('click', (e) => { if (!game) return; sfx.init(); sfx.ui(); game.resetRun(); if ((e as MouseEvent).shiftKey) { game.startLevel2(); game.setState('playing'); input.requestLock(); } else game.setState('cutscene'); });
+$('btn-l2').addEventListener('click', (e) => { if (!game || localStorage.getItem('gm_l2_unlocked') !== '1') return; sfx.init(); sfx.ui(); game.resetRun(); if ((e as MouseEvent).shiftKey) { game.startLevel2(); game.setState('playing'); input.requestLock(); } else game.setState('cutscene'); });
 $('btn-howto').addEventListener('click', () => { sfx.init(); sfx.ui(); show('screen-howto'); });
 $('btn-howto-back').addEventListener('click', () => { sfx.ui(); show('screen-title'); });
 $('btn-credits').addEventListener('click', () => { sfx.init(); sfx.ui(); creditsBackTo = 'screen-title'; show('screen-credits'); });
@@ -178,8 +178,8 @@ async function boot() {
   status.textContent = '';
   const btn = $('btn-play') as HTMLButtonElement;
   btn.disabled = false; btn.textContent = 'PLAY';
-  ($('btn-l2') as HTMLButtonElement).disabled = false;
-  if (new URLSearchParams(location.search).get('level') === '2') { const t = setInterval(() => { if (!document.getElementById('cold-open')) { clearInterval(t); game!.startLevel2(); game!.setState('playing'); } }, 300); }
+  { const b = $('btn-l2') as HTMLButtonElement; let u = false; try { u = localStorage.getItem('gm_l2_unlocked') === '1'; } catch { /* */ } b.disabled = !u; b.style.display = u ? '' : 'none'; }
+  if (new URLSearchParams(location.search).get('level') === '2' && localStorage.getItem('gm_l2_unlocked') === '1') { const t = setInterval(() => { if (!document.getElementById('cold-open')) { clearInterval(t); game!.startLevel2(); game!.setState('playing'); } }, 300); }
   (window as any).__gm = game.debugApi();
   (window as any).__gm.ready = true;
   (window as any).__gm.quality = () => quality;

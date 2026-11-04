@@ -142,5 +142,5 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; colo
 #cutscene .card small { display: block; font-size: 0.45em; color: #ffd0f4; letter-spacing: 0.2em; }
 #cutscene .skip { position: absolute; right: 24px; top: 20px; color: #fffc; font: 700 16px sans-serif; background: #0008; padding: 6px 12px; border-radius: 6px; }
 
-/* Misty 11-03: no bottom caption strip in gameplay — VO only */
-#coms { display: none !important; }
+/* Misty 11-04: captions instead of voices — clean centered lower coms */
+#coms { left: 50%; right: auto; transform: translateX(-50%); bottom: 18%; max-width: min(640px, 86vw); text-align: center; font: 600 18px Arial, sans-serif; background: rgba(0,0,0,0.55); border-left: none; border-bottom: 3px solid var(--grn); border-radius: 10px; padding: 8px 16px; text-shadow: 0 1px 3px #000; }

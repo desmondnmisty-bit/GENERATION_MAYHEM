@@ -156,8 +156,9 @@ export class Sfx {
     const f = m[this.voKey(line)]; if (!f) return false;
     return new Promise((res) => { const a = new Audio('vo/' + f); a.volume = 1; this.duck(true); let dn = false; const fin = (ok: boolean) => { if (dn) return; dn = true; this.duck(false); res(ok); }; setTimeout(() => { a.pause(); fin(true); }, 12000); a.onended = () => fin(true); a.onerror = () => fin(false); a.play().catch(() => fin(false)); });
   }
-  say(speaker: string, line: string): Promise<void> {
-    return this.realVO(speaker, line).then((ok) => ok ? undefined : this.ttsSay(speaker, line));
+  /** Misty 11-04: no spoken VO (robot voices) — captions only; keep caption pacing. */
+  say(_speaker: string, line: string): Promise<void> {
+    return new Promise((res) => setTimeout(res, 900 + line.length * 55));
   }
   ttsSay(speaker: string, line: string): Promise<void> {
     return new Promise((res) => {
