@@ -72,12 +72,12 @@ export class World {
     const m = this.sky.material as THREE.MeshBasicMaterial;
     if (!this.dockSkyMap && m.map) this.dockSkyMap = m.map;
     const fog = this.scene.fog as THREE.FogExp2;
-    fog.color.set(hd ? 0x3a2c1c : 0x101c22); fog.density = hd ? 0.0062 : 0.0075;
-    this.hemi.color.set(hd ? 0xd6a060 : 0x5a7f96); this.hemi.groundColor.set(hd ? 0x2a2614 : 0x1a1020);
-    this.moon.color.set(hd ? 0xffb070 : 0xb4d2ea);
-    for (const c of this.fogCols) c.visible = !hd; // no toxic-green dock fog in the army base
-    for (const fm of this.fogMats) (fm as THREE.MeshBasicMaterial).color.set(hd ? 0xffa040 : 0x3cff5a);
-    for (const pl of this.pointLights) pl.color.set(hd ? 0xff9a3a : 0x39ff14);
+    fog.color.set(hd ? 0x1a1030 : 0x101c22); fog.density = hd ? 0.0062 : 0.0075;
+    this.hemi.color.set(hd ? 0x8a6cff : 0x5a7f96); this.hemi.groundColor.set(hd ? 0x2a0a2a : 0x1a1020);
+    this.moon.color.set(hd ? 0x6ae8ff : 0xb4d2ea);
+    for (const c of this.fogCols) c.visible = !hd; // no toxic-green dock fog in the Pink Viper tech den (spacey-tech, not army, not outer space)
+    for (const fm of this.fogMats) (fm as THREE.MeshBasicMaterial).color.set(hd ? 0xff3ad8 : 0x3cff5a);
+    for (const pl of this.pointLights) pl.color.set(hd ? 0xff2fd0 : 0x39ff14);
     this.scene.environmentIntensity = hd ? 0.8 : 0.55;
     if (hd) {
       if (this.hdSkyMap) { m.map = this.hdSkyMap; m.needsUpdate = true; }
@@ -826,7 +826,7 @@ export class World {
     this.pointLights.forEach((pl, i) => {
       const s = sorted[i];
       if (!s) { pl.intensity = 0; return; }
-      pl.position.copy(s.a.pos); pl.color.setHex(this.arena === 'hyperdrive' && s.a.color === 0x39ff14 ? 0xff9a3a : s.a.color); pl.distance = s.a.dist;
+      pl.position.copy(s.a.pos); pl.color.setHex(this.arena === 'hyperdrive' && s.a.color === 0x39ff14 ? 0xff2fd0 : s.a.color); pl.distance = s.a.dist;
       const flick = s.a.color === 0x39ff14 ? 0.85 + Math.sin(t * 7 + i) * 0.1 : 1;
       pl.intensity = s.a.intensity * flick;
     });

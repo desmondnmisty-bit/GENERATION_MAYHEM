@@ -338,6 +338,7 @@ export class Game {
     const neon = new THREE.MeshStandardMaterial({ color: 0x00f6ff, emissive: 0x00f6ff, emissiveIntensity: 3.2, toneMapped: false });
     const hubHot = new THREE.MeshStandardMaterial({ color: 0xff1fcf, emissive: 0xff1fcf, emissiveIntensity: 3.0, metalness: 0.6, roughness: 0.2, toneMapped: false });
     this.addTruckTires(kit, 0.6, 0.25, 0.48, 0xff1fcf); void tire; void hub; void red; void steel; void tireGlow; void neon; void hubHot;
+    // REJECT regular handgun look (Misty 1104): Soft pending space-age gun + sonic muzzle; stand-in only.
     // Misty-stamped Soft HANDGUN (3D 1102, LOD1) in right hand; replaces procedural cannon.
     const gun = new THREE.Group(); gun.name = 'vixen-handgun'; gun.position.set(0.42, 1.0, 0.2); kit.add(gun);
     new GLTFLoader().load(handgunUrl, (g) => {
@@ -361,7 +362,7 @@ export class Game {
         const g = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.36, 10), steel); g.rotation.x = Math.PI / 2; g.position.set(sx, 1.0, 0.16); kit.add(g);
         for (const dz of [-0.1, 0, 0.1]) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.088, 0.016, 6, 14), coil); r.position.set(sx, 1.0, 0.16 + dz); kit.add(r); }
       }
-      const chest = new THREE.Mesh(new THREE.CircleGeometry(0.09, 16), new THREE.MeshStandardMaterial({ color: 0xff8a2b, emissive: 0xff8a2b, emissiveIntensity: 2.5, toneMapped: false })); chest.position.set(0, 1.28, 0.17); kit.add(chest);
+      const chest = new THREE.Mesh(new THREE.CircleGeometry(0.09, 16), new THREE.MeshStandardMaterial({ color: 0x1fd18a, emissive: 0x1fd18a, emissiveIntensity: 2.5, toneMapped: false })); chest.position.set(0, 1.28, 0.17); kit.add(chest);
       const pod = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.2), steel); pod.position.set(0.2, 1.52, -0.02); kit.add(pod);
       const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff2040, toneMapped: false })); eye.position.set(0.2, 1.52, 0.09); kit.add(eye);
     } else {
@@ -1737,7 +1738,7 @@ export class Game {
     this.hushVoice(); this.rageT = 0;
     this.setState(this.level === 1 ? 'cutscene' : 'win');
   }
-  /** LEVEL 2: Soft Hyperdrive army arena (same game). */
+  /** LEVEL 2: HyperDrive — Pink Viper spacey-tech den (Soft greybox until rebuild; army look REJECTED). */
   startLevel2() {
     this.clearDynamic();
     this.world.reset();
@@ -1752,7 +1753,7 @@ export class Game {
     this.spawnMines(); this.comsCd = {}; this.lowHpCd = 0;
     this.comsLine('KAMYRN', "You're in Hyperdrive. Whole base is crawling with Vipers.");
     this.comsLine('LILI', "Skate fast. Don't stop. Watch the mines.");
-    this.banner('LEVEL 2 — HYPERDRIVE', 'APEX HYPERDRIVE · ARMY ARENA', 2.4);
+    this.banner('LEVEL 2 — HYPERDRIVE', 'PINK VIPER DEN · SWARM / COBRA / FANG / HIVE', 2.4);
     this.setObjective('Skate the approach lane — clear the Scar Swarm');
     this.hud['boss'].classList.add('hidden');
   }

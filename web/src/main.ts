@@ -80,7 +80,7 @@ const CUTSCENE: Beat[] = [
   { img: 'P01', who: 'VIXEN', line: "Contract's paid. Breathe, babies.", music: 'dock' },
   { img: 'P01', who: 'KAILEE', line: 'Everybody good? Payton?' },
   { img: 'P02', who: 'PAYTON', line: "I'm good, Mom. Guns are hot." },
-  { img: 'P02', who: 'BRIANNA', line: "Next one's a base. Army. A real base match." },
+  { img: 'P02', who: 'BRIANNA', line: "Next one's HyperDrive. Pink Viper den. Their turf." },
   { img: 'P03', who: 'KAMYRN', line: "Hyperdrive's crawling with Vipers." },
   { img: 'P03', who: 'LILI', line: "Skate fast. Don't stop. Come home." },
   { img: 'P04', who: 'KAILEE', line: 'Smells like burnt metal.', music: 'hyperdrive' },
