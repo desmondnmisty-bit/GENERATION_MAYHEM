@@ -84,6 +84,8 @@ export class Sfx {
   chaosReady() { [0, 0.09, 0.18, 0.3].forEach((d, i) => this.tone('sawtooth', [220, 330, 440, 660][i], [220, 330, 440, 660][i] * 1.01, 0.35, 0.22, d)); this.tone('sine', 55, 55, 0.9, 0.6); }
   tether() { this.tone('sine', 200, 1400, 0.55, 0.3); }
   scream() { if (!this.ctx) return; for (let i = 0; i < 4; i++) this.tone('sawtooth', 520 + i * 37, 1500 + i * 60, 0.7, 0.22); this.noise(1.1, 0.85, 3000, 0.5, 'highpass'); }
+  /** Fused Shatter scream: amplified layered scream bed + sub boom for the SONIC BOOST launch beat. */
+  sonicBoost() { if (!this.ctx) return; this.scream(); for (let i = 0; i < 3; i++) this.tone('square', 260 + i * 90, 2400 + i * 200, 0.85, 0.28); this.tone('sine', 60, 25, 1.1, 0.9); this.noise(1.3, 1.0, 5000, 0.5, 'highpass'); this.cone(); }
   slingshotLaunch() { this.tone('sawtooth', 90, 30, 0.9, 0.8); this.noise(0.9, 1.0, 400, 0.4, 'lowpass', 0, 80); this.tone('sine', 1800, 200, 0.6, 0.25); }
   impact() { this.tone('sine', 110, 30, 0.6, 0.9); this.noise(0.5, 0.8, 300, 0.5, 'lowpass', 0, 60); }
   enemyDie() { this.tone('square', 300, 40, 0.3, 0.2); this.noise(0.25, 0.4, 900, 1, 'bandpass', 0, 200); }

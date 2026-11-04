@@ -844,6 +844,13 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ SHATTER-SLINGSHOT
+  // Misty asked for Kailee ~200x faster when Vixen's sonic scream fires on the slingshot.
+  // Literal 200x (42 -> 8400 u/s) tunnels through everything, so this is tuned for a playable sell:
+  // base 42 -> SONIC BOOST 110 (~2.6x real) + hitstop, FOV punch, dense cyan/magenta streak, shake,
+  // hit radius 2.4 -> 3.4, damage x1.6, range 27 -> 36. Raise SLING_BOOST_SPEED if she stamps literal.
+  static readonly SLING_BASE_SPEED = 42;
+  static readonly SLING_BOOST_SPEED = 110;
+  static readonly SLING_RANGE = 36;
   tryShatter(force = false) {
     if (this.sling.phase !== 'none') return false;
     if (!force && this.chaos < 100) { this.dmg.spawn(tmp.copy(this.vixen.pos).setY(2.4), 'CHAOS ' + Math.floor(this.chaos) + '% — HIT & KO TO FILL', 'k'); this.banner('SLINGSHOT NOT READY', 'CHAOS ' + Math.floor(this.chaos) + '% — SHOOT, KO, OR LET KAILEE TANK', 1.0); return false; }
@@ -874,7 +881,10 @@ export class Game {
       k.y += (0.9 - k.y) * Math.min(1, dt * 9);
       k.heading = Math.atan2(s.dir.x, s.dir.z);
       const a = tmp2.copy(v.pos).setY(v.y + 1.3), b = tmp3.copy(k.pos).setY(k.y + 1.0);
-      this.beam.set(a, b, 1 + Math.sin(this.time * 60) * 0.5);
+      this.beam.set(a, b, 2.2 + Math.sin(this.time * 60) * 0.8);
+      if (Math.floor(s.t * 8) !== Math.floor((s.t - dt) * 8)) { this.trans.ring(v.pos, 0xff1fcf, 0.25, 2.6, 0.35); this.trans.ring(v.pos, 0x40f0ff, 0.15, 1.6, 0.3); }
+      // sonic charge build at Vixen's mouth as Kailee comes around
+      if (Math.random() < 0.7) this.particles.emit(tmp3.copy(v.pos).setY(v.y + 1.4), new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 1.5, (Math.random() - 0.5) * 3), Math.random() < 0.5 ? COL.cyan : COL.mag, 0.15, 0.25);
       this.fovKick = -6;
       if (Math.random() < 0.6) this.particles.emit(b, new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 2, (Math.random() - 0.5) * 2), COL.mag, 0.2, 0.3);
       // BULLET-TIME AIM: world crawls, player steers Kailee, release to fire
@@ -887,13 +897,16 @@ export class Game {
       const aimed = this.aimAssist(this.slingAimYaw, 26, 0.3);
       s.dir.copy(dirFromYaw(aimed)); v.heading = aimed;
       this.slingLine.visible = true; this.slingLine.position.set(v.pos.x, 0.05, v.pos.z); this.slingLine.rotation.y = aimed;
-      this.slingLine.scale.set(2.2, 1, 1); (this.slingLine.material as THREE.MeshBasicMaterial).opacity = 0.55 + Math.sin(this.time * 20) * 0.2;
+      this.slingLine.scale.set(3.0, 1, 1.35); (this.slingLine.material as THREE.MeshBasicMaterial).opacity = 0.75 + Math.sin(this.time * 20) * 0.2;
       const released = s.t > 0.18 && (!inp.down('KeyE', 'KeyL') || inp.hit('Mouse0', 'Space', 'KeyJ'));
       if (released || s.t > 1.6) {
         this.slingLine.visible = false; this.slingLine.scale.set(1, 1, 1);
         s.phase = 'launch'; s.t = 0;
-        sfx.scream(); sfx.slingshotLaunch();
-        this.hud['banner'].style.opacity = '0'; this.lastBannerT = 0;
+        // FUSED SONIC SCREAM: Vixen screams as Kailee comes around -> SONIC BOOST launch
+        sfx.sonicBoost(); sfx.slingshotLaunch();
+        { const vg = this.hud['fx-vignette']; vg.style.boxShadow = 'inset 0 0 220px 70px rgba(64,240,255,0.75), inset 0 0 90px 20px rgba(255,31,207,0.9)'; vg.style.opacity = '1'; setTimeout(() => { vg.style.opacity = '0'; setTimeout(() => { vg.style.boxShadow = ''; }, 300); }, 260); }
+        { const fl = this.hud['fx-flash']; fl.style.background = '#bff8ff'; fl.style.opacity = '0.55'; setTimeout(() => { fl.style.opacity = '0'; setTimeout(() => { fl.style.background = ''; }, 250); }, 70); }
+        this.banner('SONIC BOOST ×200', 'VIXEN SCREAMS — KAILEE GOES SUPERSONIC', 0.9);
         this.trans.flash(tmp.copy(v.pos).addScaledVector(s.dir, 0.8).setY(v.y + 1.3), 0xff40e0, 0.2, 1.1, 0.2);
         this.trans.ring(v.pos, 0xff1fcf, 0.5, 4.5, 0.5);
         this.shake(0.7);
@@ -901,46 +914,66 @@ export class Game {
         this.trans.vring(muzzle, s.dir, 0xff1fcf, 0.3, 2.0, 0.35);
         this.trans.vring(muzzle.clone().addScaledVector(s.dir, 2.5), s.dir, 0xffffff, 0.2, 1.4, 0.3);
         this.trans.cone(muzzle, Math.atan2(s.dir.x, s.dir.z), 6, 0.22, 0xff40e0, 0.3);
+        // big sonic muzzle: wide scream cone + 6 alternating shock rings + ground rings
+        this.trans.cone(muzzle, Math.atan2(s.dir.x, s.dir.z), 12, 0.42, 0x40f0ff, 0.45);
+        for (let i = 1; i <= 6; i++) this.trans.vring(muzzle.clone().addScaledVector(s.dir, i * 2.2), s.dir, i % 2 ? 0x40f0ff : 0xff1fcf, 0.25, 1.2 + i * 0.7, 0.25 + i * 0.06);
+        this.trans.ring(v.pos, 0x40f0ff, 0.4, 7, 0.6); this.trans.ring(v.pos, 0xffffff, 0.2, 3.5, 0.35);
+        this.particles.burst(muzzle, 40, COL.cyan, 14, 0.2, 0.4, 0, 0.6);
+        this.dmg.spawn(tmp3.copy(v.pos).setY(3.2), 'SONIC BOOST ×200', 'big');
+        this.shake(1.0);
         this.worldScale = 1;
-        this.fovKick = 12;
+        this.fovKick = 22;
         if (v.anim.has('Slingshot_Release')) v.anim.once('Slingshot_Release', 0.6);
         if (k.anim.has('Check_R')) k.anim.once('Check_R', 0.8);
-        k.vel.copy(s.dir).multiplyScalar(42); this.hitstop = 0.05;
+        k.vel.copy(s.dir).multiplyScalar(Game.SLING_BOOST_SPEED); this.hitstop = 0.09;
         k.punchL = 1.5; k.punchR = 1.5; v.punchL = 1.2; v.punchR = 1.2;
       }
       return;
     }
     if (s.phase === 'launch') {
       this.beam.hide();
-      const step = 42 * dt;
-      k.pos.addScaledVector(s.dir, step); s.dist += step;
-      k.y = 0.9 + Math.sin(Math.min(1, s.dist / 26) * Math.PI) * 0.8;
-      k.heading = Math.atan2(s.dir.x, s.dir.z);
-      k.cm.pivot.rotation.x = 0.9; // superman pose lean
-      // fiery trail
-      for (let i = 0; i < 4; i++) this.particles.emit(tmp.copy(k.pos).setY(k.y + 0.8 + Math.random() * 0.6), tmp2.set((Math.random() - 0.5) * 3, Math.random() * 2, (Math.random() - 0.5) * 3).addScaledVector(s.dir, -6), i % 2 ? COL.org : COL.mag, 0.35, 0.45, 1);
-      // hit everything along the path
-      for (const e of this.enemies) {
-        if (e.state === 'dead' || s.hit.has(e)) continue;
-        const d = Math.hypot(e.pos.x - k.pos.x, e.pos.z - k.pos.z);
-        if (d < 2.4 + e.radius) {
-          s.hit.add(e);
-          const side = tmp.set(e.pos.x - k.pos.x, 0, e.pos.z - k.pos.z).normalize().multiplyScalar(0.5).add(s.dir).normalize();
-          this.hurt(e, e.def.kind === 'falcon' ? 170 : 110, side, 28, { source: 'sling', stagger: 1.5, up: 7, heavy: true, color: 0xff60e0 });
-          this.shake(0.35);
-          if (!s.firstHit) { s.firstHit = true; this.hitstop = 0.12; sfx.impact(); this.dmg.spawn(tmp.copy(e.pos).setY(e.y + 3), 'SMACK!', 'big'); }
+      // substep so the boosted speed can't tunnel through walls
+      const total = Game.SLING_BOOST_SPEED * dt, nSub = Math.max(1, Math.ceil(total / 0.5)), sub = total / nSub;
+      let blocked = false;
+      for (let si = 0; si < nSub && !blocked; si++) {
+        k.pos.addScaledVector(s.dir, sub); s.dist += sub;
+        blocked = this.world.colliders.some((b) => b.active && k.pos.x > b.minX - 0.4 && k.pos.x < b.maxX + 0.4 && k.pos.z > b.minZ - 0.4 && k.pos.z < b.maxZ + 0.4 && b.h > 1);
+        if (s.dist > Game.SLING_RANGE) break;
+        // hit everything along the path (radius + damage bumped by sonic boost)
+        for (const e of this.enemies) {
+          if (e.state === 'dead' || s.hit.has(e)) continue;
+          const d = Math.hypot(e.pos.x - k.pos.x, e.pos.z - k.pos.z);
+          if (d < 3.4 + e.radius) {
+            s.hit.add(e);
+            const side = tmp.set(e.pos.x - k.pos.x, 0, e.pos.z - k.pos.z).normalize().multiplyScalar(0.5).add(s.dir).normalize();
+            this.hurt(e, e.def.kind === 'falcon' ? 270 : 175, side, 40, { source: 'sling', stagger: 1.8, up: 9, heavy: true, color: 0x40f0ff });
+            this.shake(0.45);
+            if (!s.firstHit) {
+              s.firstHit = true; this.hitstop = 0.16; sfx.impact();
+              this.dmg.spawn(tmp.copy(e.pos).setY(e.y + 3), 'SUPERSONIC SMACK!', 'big');
+              this.trans.ring(e.pos, 0x40f0ff, 0.5, 7, 0.55); this.trans.ring(e.pos, 0xff1fcf, 0.3, 5, 0.45); this.trans.ring(e.pos, 0xffffff, 0.2, 3, 0.3);
+              this.trans.flash(tmp.copy(e.pos).setY(1.2), 0x80f8ff, 0.4, 3.5, 0.25);
+              this.particles.burst(tmp.copy(e.pos).setY(1.2), 36, COL.cyan, 12, 0.22, 0.45, -6, 0.8);
+            }
+          }
         }
       }
+      k.y = 0.9 + Math.sin(Math.min(1, s.dist / Game.SLING_RANGE) * Math.PI) * 0.8;
+      k.heading = Math.atan2(s.dir.x, s.dir.z);
+      k.cm.pivot.rotation.x = 1.15; // supersonic lean
+      // fiery trail + cyan/magenta sonic streak (dense)
+      for (let i = 0; i < 12; i++) this.particles.emit(tmp.copy(k.pos).addScaledVector(s.dir, -Math.random() * 3).setY(k.y + 0.6 + Math.random() * 0.9), tmp2.set((Math.random() - 0.5) * 3, Math.random() * 2, (Math.random() - 0.5) * 3).addScaledVector(s.dir, -10), [COL.org, COL.mag, COL.cyan][i % 3], 0.4, 0.5, 1);
+      if (Math.random() < 0.5) this.trans.vring(tmp.copy(k.pos).setY(k.y + 1.0), s.dir, Math.random() < 0.5 ? 0x40f0ff : 0xff1fcf, 0.15, 1.6, 0.2);
       // stop on walls / range / water edge
-      const blocked = this.world.colliders.some((b) => b.active && k.pos.x > b.minX - 0.4 && k.pos.x < b.maxX + 0.4 && k.pos.z > b.minZ - 0.4 && k.pos.z < b.maxZ + 0.4 && b.h > 1);
       if (k.pos.x > X_EDGE - 0.6) { k.pos.x = X_EDGE - 0.6; }
       if (k.pos.x < X_MIN + 0.6) { k.pos.x = X_MIN + 0.6; }
-      if (s.dist > 27 || blocked) {
+      if (s.dist > Game.SLING_RANGE || blocked) {
         if (blocked) k.pos.addScaledVector(s.dir, -0.8);
         s.phase = 'land'; s.t = 0;
         k.y = 0; k.vel.copy(s.dir).multiplyScalar(5);
         sfx.impact(); this.shake(0.5);
-        this.trans.ring(k.pos, 0xff8a2b, 0.5, 5, 0.5);
+        this.trans.ring(k.pos, 0xff8a2b, 0.5, 6.5, 0.55);
+        this.trans.ring(k.pos, 0x40f0ff, 0.4, 5.5, 0.5);
         this.trans.ring(k.pos, 0xff1fcf, 0.3, 4, 0.4);
         this.particles.burst(tmp.copy(k.pos).setY(0.3), 30, COL.org, 9, 0.25, 0.5, -8, 0.8);
         this.trans.flash(tmp.copy(k.pos).setY(0.8), 0xff8a2b, 0.4, 3.5, 0.3);
