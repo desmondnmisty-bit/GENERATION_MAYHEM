@@ -1605,10 +1605,10 @@ export class Game {
     if (this.introT > 0) { this.introT -= dt; return; }
     if (this.level === 1) for (const h of this.world.healSpots) {
       if (h.used || Math.hypot(this.vixen.pos.x - h.x, this.vixen.pos.z - h.z) > 2.2) continue;
-      h.used = true; h.mesh.visible = false;
+      this.world.useHeal(h);
       this.vixen.hp = Math.min(this.vixen.maxHp, this.vixen.hp + 50); this.kailee.hp = this.kailee.maxHp;
       for (const al of this.allies) al.a.hp = al.a.maxHp;
-      this.banner('MED CRATE', '+50 HP · CREW PATCHED UP — BREATHE, THEN PUSH', 1.6);
+      this.banner('MEDIC BOT', '+50 HP · PATCH KIT — CREW PATCHED UP — BREATHE, THEN PUSH', 1.6);
     }
     if (!this.waveActive && !this.waveCleared) {
       const trigger = this.wave === 0 ? -999 : zone.z0 + 3;

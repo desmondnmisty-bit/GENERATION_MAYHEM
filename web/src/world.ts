@@ -1,3 +1,4 @@
+import medicBotUrl from './assets/models/medic_bot.glb?url';
 import dockNightSkyUrl from './assets/sky/GM_Sky_DockNight_Equirect_PoleFade.png';
 import * as THREE from 'three';
 import { Assets, dockPiece } from './assets';
@@ -377,12 +378,26 @@ export class World {
       const cross = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.2), new THREE.MeshBasicMaterial({ color: 0xffffff })); cross.position.set(-9.5, 1.0, z); g.add(cross);
       const c2 = cross.clone(); c2.rotation.y = Math.PI / 2; g.add(c2);
       const light = new THREE.PointLight(0x1fd18a, 6, 7); light.position.set(-9.5, 2, z); g.add(light);
-      this.healSpots.push({ x: -9.5, z, used: false, mesh: m, mat: medMat });
+      const hs = { x: -9.5, z, used: false, mesh: m, mat: medMat, bot: null as THREE.Object3D | null, extras: [cross, c2] };
+      this.healSpots.push(hs);
     }
     this.scene.add(g);
+    // VEH_MED_BOT (lil 4-leg medic, charcoal/gunmetal + neon-pink crosses) replaces the stand-in crate once loaded
+    import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load(medicBotUrl, (gl) => {
+      const src = gl.scene; const bb = new THREE.Box3().setFromObject(src); const sz = bb.getSize(new THREE.Vector3());
+      const k = 1.15 / Math.max(0.001, sz.y);
+      for (const h of this.healSpots) {
+        const b = src.clone(true); b.scale.setScalar(k); b.position.set(h.x, -bb.min.y * k, h.z); b.rotation.y = Math.PI / 2;
+        b.traverse((o: any) => { if (o.isMesh) o.castShadow = true; });
+        g.add(b); h.bot = b; h.mesh.visible = false; for (const e of h.extras) e.visible = false;
+        (h.extras[0].parent as THREE.Object3D).children.forEach((c) => { if ((c as any).isPointLight && c.position.z === h.z) (c as THREE.PointLight).color.set(0xff3fb0); });
+        if (h.used) b.visible = false;
+      }
+    }, undefined, (e) => console.warn('[GM] medic bot failed', e)));
   }
-  healSpots: { x: number; z: number; used: boolean; mesh: THREE.Mesh; mat: THREE.MeshStandardMaterial }[] = [];
-  resetHeals() { for (const h of this.healSpots) { h.used = false; h.mesh.visible = true; } }
+  healSpots: { x: number; z: number; used: boolean; mesh: THREE.Mesh; mat: THREE.MeshStandardMaterial; bot: THREE.Object3D | null; extras: THREE.Object3D[] }[] = [];
+  resetHeals() { for (const h of this.healSpots) { h.used = false; if (h.bot) h.bot.visible = true; else h.mesh.visible = true; } }
+  useHeal(h: World['healSpots'][number]) { h.used = true; h.mesh.visible = false; if (h.bot) h.bot.visible = false; for (const e of h.extras) e.visible = false; }
   dockPockets?: THREE.Group;
   pocketBoxes: Box[] = [];
   addBox(cx: number, cz: number, sx: number, sz: number, h = 3) {
