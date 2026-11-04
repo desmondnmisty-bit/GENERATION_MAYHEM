@@ -8,23 +8,23 @@
   },
   {
     "id": "gm_co_02",
-    "frame": "birth_payton",
+    "frame": "birth_brianna",
     "speaker": "VO",
-    "line": "Payton. First one out — the bad seed.",
+    "line": "Brianna. Loud from minute one.",
     "durationSec": 1.83
   },
   {
     "id": "gm_co_03",
-    "frame": "birth_brianna",
+    "frame": "birth_kailee",
     "speaker": "VO",
-    "line": "Brianna. Born mean. Born swinging.",
+    "line": "Kailee. Bit the nurse.",
     "durationSec": 1.83
   },
   {
     "id": "gm_co_04",
-    "frame": "birth_kailee",
+    "frame": "birth_payton",
     "speaker": "VIXEN",
-    "line": "Kailee. My baby. Guards Mama at all costs.",
+    "line": "Payton. Okay, THAT one's trouble.",
     "durationSec": 1.83
   },
   {
