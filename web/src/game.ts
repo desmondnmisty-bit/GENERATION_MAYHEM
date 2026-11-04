@@ -153,7 +153,7 @@ export class Game {
     this.comsCd = {}; this.lowHpCd = 0;
     setTimeout(() => this.coms('COM_KAM_01'), 1500); setTimeout(() => this.coms('COM_LIL_01'), 5600);
     this.hushVoice(); this.lastGirlHurtT = -99;
-    this.level = 1; this.world.setArena('dock'); this.world.resetHeals(); this.spawnMines(); // after arena swap: Hyperdrive colliders off before Dock mines check placement this.rageT = 0; this.rageCd = 0; this.frenzyReason = ''; this.viperSeq = 0;
+    this.level = 1; this.world.setArena('dock'); this.world.resetHeals(); this.spawnMines(); this.spawnTurrets(); // after arena swap: Hyperdrive colliders off before Dock mines check placement this.rageT = 0; this.rageCd = 0; this.frenzyReason = ''; this.viperSeq = 0;
     sfx.setArena('dock');
     this.setObjective('Skate the green rail north — clear Berth 1');
     this.hud['boss'].classList.add('hidden');
@@ -628,7 +628,7 @@ export class Game {
     this.updateFrenzy(dt);
     this.updatePickups(dt);
     this.updateWaves(dt);
-    if (this.level === 2) this.updateTurrets(dt);
+    this.updateTurrets(dt);
     // visuals
     this.vixen.syncVisual(dt, this.p.turn);
     this.kailee.syncVisual(wdt, 0);
@@ -1780,10 +1780,13 @@ export class Game {
   private doorT = -1;
   private turrets: { g: THREE.Group; x: number; z: number; y: number; hp: number; cd: number; tele: number; burst: number; line: THREE.Line; alive: boolean }[] = [];
   private tShots: { m: THREE.Mesh; v: THREE.Vector3; t: number }[] = [];
+  private turretDmg = [4, 3];
   private spawnTurrets() {
     for (const t of this.turrets) this.scene.remove(t.g, t.line); for (const s of this.tShots) this.scene.remove(s.m);
     this.turrets = []; this.tShots = [];
-    const spots: [number, number, number][] = [[-15.5, 112, 3.2], [15.5, 112, 3.2], [-15.5, 156, 3.2], [15.5, 156, 3.2], [0, 177.2, 6.9]];
+    const spots: [number, number, number][] = this.level === 1
+      ? [[17.2, 22, 2.2], [-17.2, 74, 2.6], [17.2, 116, 2.2], [-17.2, 156, 2.6]] // Dock quay bollards / container lips
+      : [[-15.5, 112, 3.2], [15.5, 112, 3.2], [-15.5, 156, 3.2], [15.5, 156, 3.2], [0, 177.2, 6.9]];
     for (const [x, z, y] of spots) {
       const g = new THREE.Group();
       const base = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.75, 0.6, 10), new THREE.MeshStandardMaterial({ color: 0xc0c8d8, metalness: 0.9, roughness: 0.3 }));
@@ -1791,7 +1794,8 @@ export class Game {
       barrel.position.set(0, 0.45, 0.6); base.position.y = 0.3; g.add(base, barrel); g.position.set(x, y, z); this.scene.add(g);
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xff2050, transparent: true, opacity: 0 }));
       this.scene.add(line);
-      this.turrets.push({ g, x, z, y, hp: 60, cd: 2 + Math.random() * 2, tele: 0, burst: 0, line, alive: true });
+      this.turretDmg = this.level === 1 ? [3, 2] : [4, 3];
+      this.turrets.push({ g, x, z, y, hp: this.level === 1 ? 45 : 60, cd: 2 + Math.random() * 2, tele: 0, burst: 0, line, alive: true });
     }
   }
   private updateTurrets(dt: number) {
@@ -1825,7 +1829,7 @@ export class Game {
       for (const h of this.heroes()) {
         if (Math.hypot(h.pos.x - s.m.position.x, h.pos.z - s.m.position.z) < 0.7 && Math.abs(s.m.position.y - 1) < 1.2) {
           // soft DPS: 4 per bolt to Vixen, 3 to allies; tiny knock, no stagger
-          this.hurt(h, h === v ? 4 : 3, tmp.copy(s.v).setY(0).normalize(), 1.5, { source: 'hazard', color: 0xff3a8a });
+          this.hurt(h, h === v ? this.turretDmg[0] : this.turretDmg[1], tmp.copy(s.v).setY(0).normalize(), 1.5, { source: 'hazard', color: 0xff3a8a });
           s.t = 0; break;
         }
       }

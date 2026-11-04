@@ -225,6 +225,8 @@ export class World {
     // doorway (elevator) frame at the far end — the Apex objective
     piece(silver, -3.4, 177.2, 1.2, 1.2, 6, 0, cyan); piece(silver, 3.4, 177.2, 1.2, 1.2, 6, 0, cyan);
     const lintel = new THREE.Mesh(new THREE.BoxGeometry(8, 1, 1.2), purp); lintel.position.set(0, 6.4, 177.2); g.add(lintel);
+    // HD civ stand-ins (Misty 1104): techs at consoles / side decks — ambient only
+    for (const [x, z, ry, vest] of [[-15.6, 40, Math.PI / 2, 0x2ae8ff], [15.6, 86, -Math.PI / 2, 0xb8c4d8], [-15.6, 132, Math.PI / 2, 0xb8c4d8], [15.6, 134, -Math.PI / 2, 0x2ae8ff]] as const) this.addCiv(g, x, z, ry, vest, 0x1a1a24);
     const door = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 5.8), new THREE.MeshBasicMaterial({ color: 0x2ae8ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide })); door.position.set(0, 2.9, 177.6); g.add(door);
   }
   private railChev!: THREE.Texture;
@@ -412,6 +414,31 @@ export class World {
         this.pocketBoxes.push(this.addBox(dx, z + dz, 1.4, 1.4, 1.2));
       }
     }
+    // DOCK OUTSIDE ENHANCE (Misty 1104, stand-ins — Soft replaces): a little scaffold/catwalk vertical + spread cover + civs. Enhancement only.
+    const scaf = new THREE.MeshStandardMaterial({ color: 0x8a6a1a, roughness: 0.6, metalness: 0.7 });
+    const plank = new THREE.MeshStandardMaterial({ color: 0x4a4038, roughness: 0.85, metalness: 0.2 });
+    const cwH = 2.4, cwRamp = 5;
+    for (const zone of ZONES) {
+      for (const [cx, za, zb] of [[-16.3, zone.z0 + 3, zone.z0 + 13], [16.3, zone.z1 - 13, zone.z1 - 5]] as const) {
+        const len = zb - za, cz = (za + zb) / 2;
+        const top = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.25, len), plank); top.position.set(cx, cwH - 0.12, cz); top.castShadow = top.receiveShadow = true; g.add(top);
+        for (let pz = za; pz <= zb + 0.01; pz += len / 2) for (const px of [cx - 1, cx + 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.14, cwH, 0.14), scaf); p.position.set(px, cwH / 2, pz); g.add(p); }
+        const rl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, len), trim); rl.position.set(cx - Math.sign(cx) * 1.05, cwH + 0.9, cz); g.add(rl);
+        const cb = this.addBox(cx, cz, 2.2, len, cwH); cb.ride = 'top'; this.pocketBoxes.push(cb);
+        for (const dir of [1, -1] as const) {
+          const rz = dir === 1 ? za - cwRamp / 2 : zb + cwRamp / 2;
+          const ramp = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.15, Math.hypot(cwRamp, cwH)), plank); ramp.position.set(cx, cwH / 2, rz); ramp.rotation.x = dir * -Math.atan2(cwH, cwRamp); g.add(ramp);
+          const rb = this.addBox(cx, rz, 2.2, cwRamp, cwH); rb.ride = 'ramp'; rb.rampDir = dir; this.pocketBoxes.push(rb);
+        }
+      }
+      // spread cover: low crates/half-containers off the lane for mid-fight skate-away
+      for (const [dx, dz, sx, sz, h] of [[12.5, 7, 1.6, 2.6, 1.4], [-12.5, 24, 2.6, 1.6, 1.4], [2.5, 38, 1.4, 1.4, 1.2]] as const) {
+        const c = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), crate); c.position.set(dx, h / 2, zone.z0 + dz); c.castShadow = c.receiveShadow = true; g.add(c);
+        this.pocketBoxes.push(this.addBox(dx, zone.z0 + dz, sx, sz, h));
+      }
+    }
+    // civilians (ambient, not cast/combatants): dock workers in lived-in spots — hi-vis vests, idle bob/work loop
+    for (const [x, z, ry, vest] of [[-16.5, 58, Math.PI / 2, 0xff8a1a], [16.6, 100, -Math.PI / 2, 0xe8e03a], [-15.8, 142, Math.PI / 2, 0xff8a1a]] as const) this.addCiv(g, x, z, ry, vest, 0x2a3440);
     // heal station in each pocket: glowing emerald med crate (one charge per berth, recharges on run reset)
     const medMat = new THREE.MeshStandardMaterial({ color: 0x1fd18a, emissive: 0x1fd18a, emissiveIntensity: 1.6 });
     for (const zone of ZONES) {
@@ -440,6 +467,18 @@ export class World {
   healSpots: { x: number; z: number; used: boolean; mesh: THREE.Mesh; mat: THREE.MeshStandardMaterial; bot: THREE.Object3D | null; extras: THREE.Object3D[] }[] = [];
   resetHeals() { for (const h of this.healSpots) { h.used = false; if (h.bot) h.bot.visible = true; else h.mesh.visible = true; } }
   useHeal(h: World['healSpots'][number]) { h.used = true; h.mesh.visible = false; if (h.bot) h.bot.visible = false; for (const e of h.extras) e.visible = false; }
+  civs: { o: THREE.Object3D; arm: THREE.Object3D; ph: number }[] = [];
+  /** ambient civilian stand-in (capsule person). Not a combatant, no collider. */
+  addCiv(g: THREE.Object3D, x: number, z: number, ry: number, vest: number, pants: number) {
+    const o = new THREE.Group(); o.position.set(x, 0, z); o.rotation.y = ry;
+    const skin = new THREE.MeshStandardMaterial({ color: 0xc89a78, roughness: 0.8 });
+    const legs = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.8, 0.26), new THREE.MeshStandardMaterial({ color: pants, roughness: 0.9 })); legs.position.y = 0.4;
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.24, 0.5, 4, 8), new THREE.MeshStandardMaterial({ color: vest, roughness: 0.7 })); body.position.y = 1.15;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), skin); head.position.y = 1.68;
+    const arm = new THREE.Group(); arm.position.set(0.3, 1.38, 0); const am = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.1), skin); am.position.y = -0.25; arm.add(am);
+    o.add(legs, body, head, arm); o.traverse((c: any) => { if (c.isMesh) c.castShadow = true; }); g.add(o);
+    this.civs.push({ o, arm, ph: Math.random() * 6 });
+  }
   dockPockets?: THREE.Group;
   pocketBoxes: Box[] = [];
   addBox(cx: number, cz: number, sx: number, sz: number, h = 3) {
@@ -807,6 +846,7 @@ export class World {
   update(dt: number, t: number, focus: THREE.Vector3) {
     // scrolling textures
     for (const tx of this.scrollTex) { tx.offset.y -= dt * 0.08; }
+    for (const c of this.civs) { c.o.position.y = Math.abs(Math.sin(t * 2 + c.ph)) * 0.04; c.arm.rotation.x = -0.6 + Math.sin(t * 3.2 + c.ph) * 0.7; }
     this.sky.position.set(focus.x, 0, focus.z);
     this.railChev.offset.y -= dt * 1.2; this.groundChev.offset.y -= dt * 1.2;
     for (const m of this.fogMats) (m as THREE.MeshBasicMaterial).opacity = 0.5 + Math.sin(t * 0.7 + m.id) * 0.1;
