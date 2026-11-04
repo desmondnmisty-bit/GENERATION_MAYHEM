@@ -361,9 +361,13 @@ export class World {
       const z = zone.z0 + (zone.z1 - zone.z0) * 0.62;
       for (const [x0, x1] of [[-11, -4], [3, 10]]) {
         const cx = (x0 + x1) / 2, sx = x1 - x0;
-        const m = new THREE.Mesh(new THREE.BoxGeometry(sx, 2.6, 2.4), mat); m.position.set(cx, 1.3, z); m.castShadow = m.receiveShadow = true; g.add(m);
-        const t = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.08, 2.45), trim); t.position.set(cx, 2.62, z); g.add(t);
-        this.pocketBoxes.push(this.addBox(cx, z, sx, 2.4, 2.6));
+        const m = new THREE.Mesh(new THREE.BoxGeometry(sx, 3.4, 2.4), mat); m.position.set(cx, 1.7, z); m.castShadow = m.receiveShadow = true; g.add(m);
+        const t = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.08, 2.45), trim); t.position.set(cx, 3.42, z); g.add(t);
+        this.pocketBoxes.push(this.addBox(cx, z, sx, 2.4, 3.4));
+      }
+      for (const [ax, az] of [[-10.5, -14], [9.5, -20]]) { // break-line cover in the fight floor: tall stacks with an alley behind
+        const m2 = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.4, 5), mat); m2.position.set(ax, 1.7, z + az); m2.castShadow = m2.receiveShadow = true; g.add(m2);
+        this.pocketBoxes.push(this.addBox(ax, z + az, 2.4, 5, 3.4));
       }
       for (const [dx, dz] of [[-7, 6], [6.5, 8], [0, 11]]) {
         const c = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 1.4), crate); c.position.set(dx, 0.6, z + dz); c.castShadow = true; g.add(c);

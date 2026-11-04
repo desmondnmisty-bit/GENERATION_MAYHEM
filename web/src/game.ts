@@ -16,13 +16,12 @@ const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Ve
 
 type Spawn = 'v' | 'e' | 'f';
 interface WaveDef { title: string; sub: string; batches: { list: Spawn[]; when: number }[] } // when: spawn when alive <= n (first batch: -1 = at start)
-const WAVES: WaveDef[] = [
-  { title: 'WAVE 1', sub: 'PINK VIPERS', batches: [{ list: ['v', 'v', 'v', 'v'], when: -1 }, { list: ['v', 'v', 'v'], when: 1 }] },
-  { title: 'WAVE 2', sub: 'IRON ROSE ENFORCERS', batches: [{ list: ['v', 'v', 'v', 'e'], when: -1 }, { list: ['v', 'v', 'e', 'e'], when: 2 }] },
-  { title: 'WAVE 3', sub: 'FLOODED LOT', batches: [{ list: ['v', 'v', 'v', 'v', 'e'], when: -1 }, { list: ['v', 'v', 'v', 'e', 'e'], when: 2 }] },
+const WAVES: WaveDef[] = [ // Dockyards slowed (Misty 1104): fewer bodies, follow-ups only when the floor is nearly clear
+  { title: 'WAVE 1', sub: 'PINK VIPERS', batches: [{ list: ['v', 'v', 'v'], when: -1 }, { list: ['v', 'v'], when: 0 }] },
+  { title: 'WAVE 2', sub: 'IRON ROSE ENFORCERS', batches: [{ list: ['v', 'v', 'e'], when: -1 }, { list: ['v', 'e'], when: 1 }] },
+  { title: 'WAVE 3', sub: 'FLOODED LOT', batches: [{ list: ['v', 'v', 'v', 'e'], when: -1 }, { list: ['v', 'v', 'e'], when: 1 }] },
   { title: 'WAVE 4', sub: 'FALCON — FACE OF THE IRON ROSE', batches: [{ list: ['f', 'v', 'v'], when: -1 }] },
 ];
-// LEVEL 2 — Soft Hyperdrive (Apex Hyperdrive army arena). Pink Vipers squads: Swarm=Scar Swarm, Cobra=Hood Strike, Fang=Jet Fang, Hive=Hex Nest.
 const WAVES_L2: WaveDef[] = [
   { title: 'HYPERDRIVE · APPROACH', sub: 'SWARM — SCAR SWARM INCOMING', batches: [{ list: ['v', 'v', 'v', 'v', 'v'], when: -1 }, { list: ['v', 'v', 'v', 'v'], when: 2 }] },
   { title: 'HYPERDRIVE · RING HALL', sub: 'COBRA — HOOD STRIKE + IRON ROSE', batches: [{ list: ['v', 'v', 'v', 'e', 'e'], when: -1 }, { list: ['v', 'v', 'v', 'e'], when: 2 }] },
@@ -1316,7 +1315,13 @@ export class Game {
     const yawTo = Math.atan2(dx, dz);
     const def = e.def;
     let wantVX = 0, wantVZ = 0, grip = 4, faceYaw = yawTo;
-    const steer = (gx: number, gz: number, spd: number) => { const ddx = gx - e.pos.x, ddz = gz - e.pos.z, d = Math.hypot(ddx, ddz) || 1; wantVX = ddx / d * Math.min(spd, d * 3); wantVZ = ddz / d * Math.min(spd, d * 3); };
+    // Dockyards calm + hide: L1 enemies 25% slower; if Vixen is tucked behind a pocket wall and they're on the far side, they lose her (slow search, retarget)
+    let calm = this.level === 1 ? 0.75 : 1;
+    if (this.level === 1 && t === this.vixen) for (const zone of ZONES) {
+      const wz = zone.z0 + (zone.z1 - zone.z0) * 0.62;
+      if (t.pos.z > wz + 1.2 && t.pos.z < wz + 14 && e.pos.z < wz - 1.2 && Math.abs(t.pos.x - e.pos.x) < 9) { calm = 0.3; if (e.retargetT > 0.6) e.retargetT = 0.6; e.cd = Math.max(e.cd, 0.5); }
+    }
+    const steer = (gx: number, gz: number, spd0: number) => { const spd = spd0 * calm; const ddx = gx - e.pos.x, ddz = gz - e.pos.z, d = Math.hypot(ddx, ddz) || 1; wantVX = ddx / d * Math.min(spd, d * 3); wantVZ = ddz / d * Math.min(spd, d * 3); };
     switch (e.state) {
       case 'spawn':
         if (e.stateT <= 0) e.state = 'chase';
@@ -1626,7 +1631,7 @@ export class Game {
       const alive = this.enemies.filter((e) => e.state !== 'dead').length;
       if (this.batch < w.batches.length) {
         const b = w.batches[this.batch];
-        if (b.when < 0 || (alive <= b.when && (this.level === 2 || (this.breatheT += dt) > 5))) {
+        if (b.when < 0 || (alive <= b.when && (this.level === 2 || (this.breatheT += dt) > 8))) {
           this.breatheT = 0;
           if (this.level === 1 && this.batch > 0) this.banner('', 'REINFORCEMENTS — USE THE POCKET BEHIND THE CONTAINERS', 1.4);
           const run = this.runId;
