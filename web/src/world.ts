@@ -247,6 +247,33 @@ export class World {
     const lintel = new THREE.Mesh(new THREE.BoxGeometry(8, 1, 1.2), purp); lintel.position.set(0, 6.4, 177.2); g.add(lintel);
     // HD civ stand-ins (Misty 1104): techs at consoles / side decks — ambient only
     for (const [x, z, ry, vest] of [[-15.6, 40, Math.PI / 2, 0x2ae8ff], [15.6, 86, -Math.PI / 2, 0xb8c4d8], [-15.6, 132, Math.PI / 2, 0xb8c4d8], [15.6, 134, -Math.PI / 2, 0x2ae8ff]] as const) this.addCiv(g, x, z, ry, vest, 0x1a1a24);
+    // CityLivedIn v012 (Misty stamp 1104): ONLY two lore signs, worn / less-readable — Iron Rose Arms + Slither Surplus. No other named shops.
+    const wornSign = (text: string, col: string, x: number, z: number, ry: number) => {
+      const tex = canvasTex(512, 192, (c) => {
+        c.fillStyle = '#0a0610'; c.fillRect(0, 0, 512, 192);
+        c.font = 'bold 64px Impact, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.shadowColor = col; c.shadowBlur = 24; c.fillStyle = col; c.fillText(text, 256, 96);
+        c.shadowBlur = 0; c.globalCompositeOperation = 'destination-out';
+        for (let i = 0; i < 260; i++) { c.globalAlpha = Math.random() * 0.8; c.fillRect(Math.random() * 512, Math.random() * 192, 2 + Math.random() * 22, 2 + Math.random() * 7); }
+        c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+      });
+      tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(6, 2.25), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false }));
+      m.position.set(x, 4.6, z); m.rotation.y = ry; g.add(m);
+    };
+    wornSign('IRON ROSE ARMS', '#ff3a4a', -16.9, 150, Math.PI / 2);
+    wornSign('SLITHER SURPLUS', '#3cff5a', 16.95, 58, -Math.PI / 2);
+    // VERTICAL onto the silver decks (v009/v012): prominent lane-side stairs + landings → elevated angles on edge guns / Brianna gauntlet. Routes + doorway untouched.
+    const stepMat = new THREE.MeshStandardMaterial({ color: 0xc8d0e0, roughness: 0.3, metalness: 0.85 });
+    for (const sx of [-1, 1]) for (const [z0, h] of [[52, 2.0], [142, 2.2]] as const) {
+      const x = sx * 11.5;
+      wedge(x, z0 + 3, 2.6, 6, h);
+      for (let i = 0; i < 8; i++) { const st = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.08, 0.2), i % 2 ? cyan : stepMat); st.position.set(x, (i + 0.5) / 8 * h + 0.02, z0 + (i + 0.5) * 0.75); g.add(st); }
+      piece(silver, x, z0 + 8, 3.2, 4, h, 0, sx < 0 ? cyan : purp, undefined, 'top');
+    }
+    // DENSER CIVS (street life, ambient only): walkers pacing the deck tops + small standing clusters by the two shops
+    for (const sx of [-1, 1]) for (const [z0, z1, h] of [[6, 30, 1.6], [48, 80, 2.0], [96, 126, 1.6]] as const) this.addCiv(g, sx * 13.6, z0 + 3, 0, sx < 0 ? 0x7a6a9a : 0x9a7a5a, 0x22222a, { z0: z0 + 2, z1: z1 - 2, y: h, sp: 0.9 + Math.random() * 0.5 });
+    for (const [x, z, ry, vest, y] of [[-16.2, 147, Math.PI / 2, 0xa04040, 2.2], [-15.4, 148.4, -2.4, 0x506070, 2.2], [-16.1, 153, 1.2, 0x705a40, 2.2], [16.2, 55, -Math.PI / 2, 0x40a060, 2.0], [15.5, 56.5, 2.4, 0x605070, 2.0], [16.2, 61, -1.2, 0x8a8a8a, 2.0], [-16, 98, 1.4, 0xb8c4d8, 1.6], [16, 120, -1.7, 0x2ae8ff, 1.6]] as const) { this.addCiv(g, x, z, ry, vest, 0x1a1a24); this.civs[this.civs.length - 1].by = y; }
     const door = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 5.8), new THREE.MeshBasicMaterial({ color: 0x2ae8ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide })); door.position.set(0, 2.9, 177.6); g.add(door);
   }
   private railChev!: THREE.Texture;
@@ -487,9 +514,9 @@ export class World {
   healSpots: { x: number; z: number; used: boolean; mesh: THREE.Mesh; mat: THREE.MeshStandardMaterial; bot: THREE.Object3D | null; extras: THREE.Object3D[] }[] = [];
   resetHeals() { for (const h of this.healSpots) { h.used = false; if (h.bot) h.bot.visible = true; else h.mesh.visible = true; } }
   useHeal(h: World['healSpots'][number]) { h.used = true; h.mesh.visible = false; if (h.bot) h.bot.visible = false; for (const e of h.extras) e.visible = false; }
-  civs: { o: THREE.Object3D; arm: THREE.Object3D; ph: number }[] = [];
+  civs: { o: THREE.Object3D; arm: THREE.Object3D; ph: number; by?: number; walk?: { z0: number; z1: number; y: number; sp: number; dir: number } }[] = [];
   /** ambient civilian stand-in (capsule person). Not a combatant, no collider. */
-  addCiv(g: THREE.Object3D, x: number, z: number, ry: number, vest: number, pants: number) {
+  addCiv(g: THREE.Object3D, x: number, z: number, ry: number, vest: number, pants: number, walk?: { z0: number; z1: number; y: number; sp: number }) {
     const o = new THREE.Group(); o.position.set(x, 0, z); o.rotation.y = ry;
     const skin = new THREE.MeshStandardMaterial({ color: 0xc89a78, roughness: 0.8 });
     const legs = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.8, 0.26), new THREE.MeshStandardMaterial({ color: pants, roughness: 0.9 })); legs.position.y = 0.4;
@@ -497,7 +524,7 @@ export class World {
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), skin); head.position.y = 1.68;
     const arm = new THREE.Group(); arm.position.set(0.3, 1.38, 0); const am = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.1), skin); am.position.y = -0.25; arm.add(am);
     o.add(legs, body, head, arm); o.traverse((c: any) => { if (c.isMesh) c.castShadow = true; }); g.add(o);
-    this.civs.push({ o, arm, ph: Math.random() * 6 });
+    this.civs.push({ o, arm, ph: Math.random() * 6, walk: walk ? { ...walk, dir: 1 } : undefined });
   }
   dockPockets?: THREE.Group;
   pocketBoxes: Box[] = [];
@@ -866,7 +893,13 @@ export class World {
   update(dt: number, t: number, focus: THREE.Vector3) {
     // scrolling textures
     for (const tx of this.scrollTex) { tx.offset.y -= dt * 0.08; }
-    for (const c of this.civs) { c.o.position.y = Math.abs(Math.sin(t * 2 + c.ph)) * 0.04; c.arm.rotation.x = -0.6 + Math.sin(t * 3.2 + c.ph) * 0.7; }
+    for (const c of this.civs) {
+      const w = c.walk;
+      if (w) { // simple pace loop along a deck top
+        c.o.position.z += w.dir * w.sp * dt; if (c.o.position.z > w.z1) w.dir = -1; else if (c.o.position.z < w.z0) w.dir = 1;
+        c.o.rotation.y = w.dir > 0 ? 0 : Math.PI; c.o.position.y = w.y + Math.abs(Math.sin(t * 6 + c.ph)) * 0.06; c.arm.rotation.x = Math.sin(t * 6 + c.ph) * 0.6;
+      } else { c.o.position.y = (c.by ?? 0) + Math.abs(Math.sin(t * 2 + c.ph)) * 0.04; c.arm.rotation.x = -0.6 + Math.sin(t * 3.2 + c.ph) * 0.7; }
+    }
     this.sky.position.set(focus.x, 0, focus.z);
     this.railChev.offset.y -= dt * 1.2; this.groundChev.offset.y -= dt * 1.2;
     for (const m of this.fogMats) (m as THREE.MeshBasicMaterial).opacity = 0.5 + Math.sin(t * 0.7 + m.id) * 0.1;
