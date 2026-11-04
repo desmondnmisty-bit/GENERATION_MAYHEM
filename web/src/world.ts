@@ -222,6 +222,20 @@ export class World {
       // vertical: tall perch platforms with kickers up
       for (const z of [20, 64, 112, 156]) { piece(steel, sx * 15.5, z, 2.6, 4, 3.2, 0, cyan, undefined, 'top'); }
     }
+    // COVER PASS (Misty lock 1104): crates / barriers / low walls / pipes / debris — duck+weave spawn→doorway, staggered, lane gaps kept
+    const crate = new THREE.MeshStandardMaterial({ color: 0x6a5a3a, roughness: 0.9 });
+    const pipeMat = new THREE.MeshStandardMaterial({ color: 0x8a909a, roughness: 0.4, metalness: 0.8 });
+    const pipe = (cx: number, cz: number, len: number, ry: number) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), pipeMat); m.rotation.z = Math.PI / 2; m.rotation.y = ry; m.position.set(cx, 0.45, cz); g.add(m); piece(pipeMat, cx, cz, len, 0.9, 0.9, ry).h = 0.9; m.castShadow = true; };
+    // crates (1.4 high, duckable)
+    for (const [x, z, r] of [[5, 42, 0.2], [-4.5, 56, -0.3], [9, 92, 0.4], [-8.5, 104, 0.1], [7.5, 118, -0.2], [-3, 132, 0.3], [9.5, 148, 0], [-9.5, 160, 0.25]] as const) piece(crate, x, z, 1.5, 1.5, 1.4, r, amber);
+    // jersey barriers (long low, angled → weave lines)
+    for (const [x, z, r] of [[-2.5, 38, 0.5], [3, 86, -0.45], [-3.5, 112, 0.4], [3.5, 137, -0.5], [-5, 150, 0.35]] as const) piece(conc, x, z, 3.6, 0.7, 1.1, r, cyan);
+    // low walls (waist cover)
+    for (const [x, z] of [[-11.5, 18], [11.5, 44], [-11.5, 92], [11.5, 104], [-6.5, 174], [6.5, 174]] as const) piece(conc, x, z, 3, 0.6, 1.2, 0, purp);
+    // pipe runs (crossing, ollie-able)
+    pipe(-7, 46, 4, 0.3); pipe(7.5, 98, 4, -0.3); pipe(-7, 128, 4, 0.2); pipe(6, 164, 3.5, -0.2);
+    // debris scatter (small chunks, readable)
+    for (const [x, z, sz] of [[2, 26, 0.8], [-6, 84, 0.9], [4, 102, 0.7], [-2, 122, 0.8], [6.5, 130, 0.9], [-4, 168, 0.7]] as const) piece(olive, x, z, sz * 1.3, sz, sz * 0.7, x * 0.3);
     // doorway (elevator) frame at the far end — the Apex objective
     piece(silver, -3.4, 177.2, 1.2, 1.2, 6, 0, cyan); piece(silver, 3.4, 177.2, 1.2, 1.2, 6, 0, cyan);
     const lintel = new THREE.Mesh(new THREE.BoxGeometry(8, 1, 1.2), purp); lintel.position.set(0, 6.4, 177.2); g.add(lintel);

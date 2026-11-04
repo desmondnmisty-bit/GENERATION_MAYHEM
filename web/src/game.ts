@@ -1786,7 +1786,7 @@ export class Game {
     this.turrets = []; this.tShots = [];
     const spots: [number, number, number][] = this.level === 1
       ? [[17.2, 22, 2.2], [-17.2, 74, 2.6], [17.2, 116, 2.2], [-17.2, 156, 2.6]] // Dock quay bollards / container lips
-      : [[-15.5, 112, 3.2], [15.5, 112, 3.2], [-15.5, 156, 3.2], [15.5, 156, 3.2], [0, 177.2, 6.9]];
+      : [[-15.5, 112, 3.2], [15.5, 140, 3.2], [-10, 170, 3.2], [10, 170, 3.2]] // Misty lock 1104: EXACTLY 4 — left side, right side, back pair on Slither protect wall;
     for (const [x, z, y] of spots) {
       const g = new THREE.Group();
       const base = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.75, 0.6, 10), new THREE.MeshStandardMaterial({ color: 0xc0c8d8, metalness: 0.9, roughness: 0.3 }));
