@@ -215,7 +215,7 @@ frame();
   wrap.id = 'cold-open';
   wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;cursor:pointer';
   const v = document.createElement('video');
-  v.src = 'intro/GM_ColdOpen_Full_v003.mp4'; v.muted = false; v.autoplay = true; v.playsInline = true;
+  v.src = 'intro/GM_ColdOpen_Full_v003_nocrawl.mp4'; v.muted = false; v.autoplay = true; v.playsInline = true;
   v.style.cssText = 'width:100%;height:100%;object-fit:contain';
   const hint = document.createElement('div');
   hint.textContent = 'TAP FOR SOUND · CLICK OR ANY KEY TO SKIP';
