@@ -16,17 +16,17 @@ const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Ve
 
 type Spawn = 'v' | 'e' | 'f';
 interface WaveDef { title: string; sub: string; batches: { list: Spawn[]; when: number }[] } // when: spawn when alive <= n (first batch: -1 = at start)
-const WAVES: WaveDef[] = [ // Dockyards slowed (Misty 1104): fewer bodies, follow-ups only when the floor is nearly clear
-  { title: 'WAVE 1', sub: 'PINK VIPERS', batches: [{ list: ['v', 'v', 'v'], when: -1 }, { list: ['v', 'v'], when: 0 }] },
-  { title: 'WAVE 2', sub: 'IRON ROSE ENFORCERS', batches: [{ list: ['v', 'v', 'e'], when: -1 }, { list: ['v', 'e'], when: 1 }] },
-  { title: 'WAVE 3', sub: 'FLOODED LOT', batches: [{ list: ['v', 'v', 'v', 'e'], when: -1 }, { list: ['v', 'v', 'e'], when: 1 }] },
-  { title: 'WAVE 4', sub: 'FALCON — FACE OF THE IRON ROSE', batches: [{ list: ['f', 'v', 'v'], when: -1 }] },
+const WAVES: WaveDef[] = [ // Dockyards = Iron Rose ONLY (Misty 1104 fodder lock). Slowed: fewer bodies, follow-ups when floor nearly clear
+  { title: 'WAVE 1', sub: 'IRON ROSE BRUTES', batches: [{ list: ['e', 'e', 'e'], when: -1 }, { list: ['e', 'e'], when: 0 }] },
+  { title: 'WAVE 2', sub: 'IRON ROSE ENFORCERS', batches: [{ list: ['e', 'e', 'e'], when: -1 }, { list: ['e', 'e'], when: 1 }] },
+  { title: 'WAVE 3', sub: 'FLOODED LOT', batches: [{ list: ['e', 'e', 'e', 'e'], when: -1 }, { list: ['e', 'e'], when: 1 }] },
+  { title: 'WAVE 4', sub: 'FALCON — FACE OF THE IRON ROSE', batches: [{ list: ['f', 'e', 'e'], when: -1 }] },
 ];
-const WAVES_L2: WaveDef[] = [
+const WAVES_L2: WaveDef[] = [ // HyperDrive = Pink Vipers ONLY (Misty 1104 fodder lock). No IRS / Falcon mix.
   { title: 'HYPERDRIVE · APPROACH', sub: 'SWARM — SCAR SWARM INCOMING', batches: [{ list: ['v', 'v', 'v', 'v', 'v'], when: -1 }, { list: ['v', 'v', 'v', 'v'], when: 2 }] },
-  { title: 'HYPERDRIVE · RING HALL', sub: 'COBRA — HOOD STRIKE + IRON ROSE', batches: [{ list: ['v', 'v', 'v', 'e', 'e'], when: -1 }, { list: ['v', 'v', 'v', 'e'], when: 2 }] },
-  { title: 'HYPERDRIVE · CORRIDOR', sub: 'FANG — JET FANG DIVES', batches: [{ list: ['v', 'v', 'v', 'v', 'e'], when: -1 }, { list: ['v', 'v', 'v', 'v', 'e', 'e'], when: 2 }] },
-  { title: 'HYPERDRIVE · COCKPIT CORE', sub: 'HIVE — HEX NEST + FALCON', batches: [{ list: ['f', 'v', 'v', 'v'], when: -1 }, { list: ['v', 'v', 'e'], when: 2 }] },
+  { title: 'HYPERDRIVE · RING HALL', sub: 'COBRA — HOOD STRIKE', batches: [{ list: ['v', 'v', 'v', 'v', 'v'], when: -1 }, { list: ['v', 'v', 'v', 'v'], when: 2 }] },
+  { title: 'HYPERDRIVE · CORRIDOR', sub: 'FANG — JET FANG DIVES', batches: [{ list: ['v', 'v', 'v', 'v', 'v'], when: -1 }, { list: ['v', 'v', 'v', 'v', 'v'], when: 2 }] },
+  { title: 'HYPERDRIVE · COCKPIT CORE', sub: 'HIVE — HEX NEST', batches: [{ list: ['v', 'v', 'v', 'v'], when: -1 }, { list: ['v', 'v', 'v', 'v'], when: 2 }] },
 ];
 const VIPER_SQUADS = [
   { squad: 'SWARM', fin: 'SCAR SWARM' }, { squad: 'COBRA', fin: 'HOOD STRIKE' }, { squad: 'FANG', fin: 'JET FANG' }, { squad: 'HIVE', fin: 'HEX NEST' },
@@ -1622,7 +1622,7 @@ export class Game {
         const w = this.waves[this.wave];
         this.banner(w.title, w.sub, 1.6); sfx.waveStart();
         if (this.level === 2) this.coms('COM_L2_' + this.wave); else if (this.wave === 1) this.coms('COM_KAM_02'); else if (this.wave === 2) this.coms('COM_LIL_02'); else if (this.wave === 3) this.coms('COM_KAM_03');
-        this.setObjective(this.wave === 3 ? (this.level === 2 ? 'Cockpit Core: break Falcon + the Hive' : 'Break Falcon and the Iron Rose escort') : `Clear ${this.zoneName(this.wave)} — then the gate opens`);
+        this.setObjective(this.wave === 3 ? (this.level === 2 ? 'Cockpit Core: break the Hive nest' : 'Break Falcon and the Iron Rose escort') : `Clear ${this.zoneName(this.wave)} — then the gate opens`);
       }
       return;
     }
