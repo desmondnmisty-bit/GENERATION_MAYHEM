@@ -252,3 +252,7 @@ frame();
   // try unmuted first; browsers that block it fall back muted until first tap
   v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
 })();
+
+// Global first-gesture audio unlock (phones keep AudioContext suspended until a tap)
+const __unlock = () => { sfx.unlock(); (window as any).__gmAudio = () => sfx.ctx?.state; };
+['pointerdown', 'touchend', 'keydown', 'click'].forEach((ev) => window.addEventListener(ev, __unlock, { capture: true, passive: true }));
