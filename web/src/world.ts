@@ -113,6 +113,12 @@ export class World {
       if (this.hdGroup) this.hdGroup.visible = false;
     }
   }
+  /** Apex top (Slither fight): hide the approach lane + ring so the silver flat reads alone. */
+  setApexTop(on: boolean) {
+    if (this.arena !== 'hyperdrive') return;
+    this.hdWalk.visible = !on; if (this.hdGroup) this.hdGroup.visible = !on;
+    for (const b of this.hdColliders) b.active = !on;
+  }
   private dockDress: THREE.Object3D[] = [];
   private dockColliders: Box[] = [];
   private hdColliders: Box[] = [];

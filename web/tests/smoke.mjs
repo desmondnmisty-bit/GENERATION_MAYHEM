@@ -1,0 +1,21 @@
+import puppeteer from 'puppeteer-core';
+const URL = process.argv[2] || 'http://localhost:4181/';
+const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new',
+  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--window-size=1280,720', '--autoplay-policy=no-user-gesture-required'] });
+const page = await browser.newPage();
+await page.setViewport({ width: 1280, height: 720 });
+const errs = [];
+page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errs.push(m.type() + ': ' + m.text()); });
+page.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+await page.evaluateOnNewDocument(() => { window.__gmNoAutoQuality = true; });
+await page.goto(URL, { waitUntil: 'load', timeout: 120000 });
+await page.waitForFunction(() => window.__gm && window.__gm.ready, { timeout: 120000 });
+console.log('assets', JSON.stringify(await page.evaluate(() => window.__gm.assets())));
+await new Promise((r) => setTimeout(r, 1500));
+await page.screenshot({ path: 'shots/dbg_title.png' });
+await page.click('#btn-play');
+await new Promise((r) => setTimeout(r, 2500));
+await page.screenshot({ path: 'shots/dbg_play.png' });
+console.log('fps', await page.evaluate(() => window.__gmFps));
+console.log(errs.join('\n'));
+await browser.close();

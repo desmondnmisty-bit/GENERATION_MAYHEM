@@ -1,0 +1,18 @@
+import puppeteer from 'puppeteer-core';
+const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox'] });
+const p = await b.newPage(); await p.setViewport({ width: 1280, height: 720 });
+const errs=[]; p.on('pageerror',e=>errs.push(e.message));
+await p.evaluateOnNewDocument(() => { window.__gmNoAutoQuality = true; });
+await p.goto('http://localhost:4181/', { waitUntil: 'load' });
+await p.waitForFunction(() => window.__gm && window.__gm.ready, { timeout: 120000 });
+console.log(JSON.stringify(await p.evaluate(() => window.__gm.assets().failed)));
+await p.click('#btn-play'); await new Promise(r => setTimeout(r, 4000));
+await p.screenshot({ path: 'shots/15_combat_wheels.png' });
+const info = await p.evaluate(() => { const g = window.__gm.game; const v=g.vixen; const k=g.kailee;
+  g.introT = 1e9; const cam = g.camera || g.cam; if (!cam) return 'nocam';
+  g.__freeze = true; const c=v.pos.clone(); k.pos.set(c.x+1.4,0,c.z);
+  g.update = ((u)=>function(dt){ u.call(this,dt); cam.position.set(c.x+0.7, 1.2, c.z+3.4); cam.lookAt(c.x+0.7, 0.75, c.z); })(g.update);
+  return 'ok'; });
+console.log(info); await new Promise(r => setTimeout(r, 2500));
+await p.screenshot({ path: 'shots/14_hip_wheels.png' });
+console.log('errs', errs); await b.close();

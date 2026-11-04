@@ -1,0 +1,16 @@
+import puppeteer from 'puppeteer-core';
+const browser = await puppeteer.launch({ protocolTimeout: 300000, executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'] });
+const page = await browser.newPage(); const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
+await page.setViewport({ width: 640, height: 360 });
+await page.goto('http://localhost:4183/', { waitUntil: 'domcontentloaded', timeout: 120000 });
+await page.waitForFunction(() => window.__gm && window.__gm.ready, { timeout: 240000 });
+const S = (n)=>new Promise(r=>setTimeout(r,n));
+const st = async (n) => console.log(n, await page.evaluate(() => JSON.stringify({...window.__gm.apex(), st: window.__gm.state})));
+await page.evaluate(() => { document.getElementById('cold-open')?.remove(); window.__gm.skipToL2(); });
+await S(4000); await st('l2');
+await page.evaluate(() => window.__gm.apexStart());
+await S(5000); await st('ride'); await page.screenshot({ path: 'shots/apex_ride.png' });
+await S(3500); await st('doors'); await page.screenshot({ path: 'shots/apex_doors.png' });
+await S(6000); await st('top'); await page.screenshot({ path: 'shots/apex_top.png' });
+await S(40000); await st('late'); await page.screenshot({ path: 'shots/apex_end.png' });
+console.log(errs); await browser.close();

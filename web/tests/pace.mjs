@@ -1,0 +1,12 @@
+import puppeteer from 'puppeteer-core';
+const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox'] });
+const p = await b.newPage(); await p.setViewport({ width: 1280, height: 720 });
+const errs=[]; p.on('pageerror',e=>errs.push(e.message));
+await p.evaluateOnNewDocument(() => { window.__gmNoAutoQuality = true; });
+await p.goto('http://localhost:4181/', { waitUntil: 'load' });
+await p.waitForFunction(() => window.__gm && window.__gm.ready, { timeout: 120000 });
+await p.click('#btn-play'); await p.keyboard.down('KeyW'); await new Promise(r => setTimeout(r, 5000));
+await p.screenshot({ path: 'shots/19_pace_readable.png' });
+await new Promise(r => setTimeout(r, 5000));
+await p.screenshot({ path: 'shots/20_combat_readable.png' });
+console.log('enemies', await p.evaluate(()=>window.__gm.game.enemies.length), 'errs', errs); await b.close();

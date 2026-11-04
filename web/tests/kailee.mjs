@@ -1,0 +1,17 @@
+import puppeteer from 'puppeteer-core';
+const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox'] });
+const p = await b.newPage(); await p.setViewport({ width: 1280, height: 720 });
+const errs=[]; p.on('pageerror',e=>errs.push(e.message));
+await p.evaluateOnNewDocument(() => { window.__gmNoAutoQuality = true; });
+await p.goto('http://localhost:4181/', { waitUntil: 'load' });
+await p.waitForFunction(() => window.__gm && window.__gm.ready, { timeout: 120000 });
+await p.click('#btn-play'); await new Promise(r => setTimeout(r, 6000));
+const cam = async (o,t)=>p.evaluate((o,t)=>{ const g=window.__gm.game; const k=g.kailee; const c=g.camera;
+  if(!g.__kcam){ g.__kcam=1; g.update=((u)=>function(dt){u.call(this,dt); const q=this.kailee.pos; c.position.set(q.x+window.__o[0],window.__o[1],q.z+window.__o[2]); c.lookAt(q.x+window.__t[0],window.__t[1],q.z+window.__t[2]);})(g.update);} window.__o=o; window.__t=t;
+  return g.enemies.length+' enemies'; },o,t);
+console.log(await cam([1.6,1.5,2.6],[0,0.9,0]));
+await new Promise(r => setTimeout(r, 2500)); await p.screenshot({ path: 'shots/20_kailee_gameplay.png' });
+console.log(await p.evaluate(()=>{const g=window.__gm.game; const k=g.kailee; const e=g.enemies[0]; if(e){ e.pos.set(k.pos.x-1.2,0,k.pos.z+1.0);} return e?e.key:'none';}));
+await cam([2.6,2.0,3.2],[-0.5,0.9,0.5]);
+await new Promise(r => setTimeout(r, 1800)); await p.screenshot({ path: 'shots/21_kailee_combat.png' });
+console.log('errs', errs); await b.close();

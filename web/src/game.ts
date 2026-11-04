@@ -140,6 +140,7 @@ export class Game {
     this.camera.position.set(0, 3, z - 7);
   }
   resetRun() {
+    this.resetApex();
     this.clearDynamic();
     this.world.reset();
     this.wave = 0; this.waveActive = false; this.batch = 0; this.waveCleared = false; this.gateOpen = false; this.introT = 1.2;
@@ -613,6 +614,7 @@ export class Game {
     if (this.state !== 'playing') { this.updateCamera(rawDt, true); return; }
     const dt = Math.min(rawDt, 1 / 30);
     this.time += dt; this.stats.time += dt;
+    if (this.apex === 'movie' || this.apex === 'end') { this.tickApexMovie(dt); this.input.endFrame(); return; }
     if (this.hitstop > 0) { this.hitstop -= dt; this.updateCamera(dt, false); this.input.endFrame(); return; }
     const wdt = dt * this.worldScale;
     this.updatePlayer(dt);
@@ -628,7 +630,7 @@ export class Game {
     this.updateFrenzy(dt);
     this.updatePickups(dt);
     this.updateWaves(dt);
-    this.updateTurrets(dt);
+    if (this.apex === 'none') this.updateTurrets(dt); else this.tickSlither(dt);
     // visuals
     this.vixen.syncVisual(dt, this.p.turn);
     this.kailee.syncVisual(wdt, 0);
@@ -1763,10 +1765,9 @@ export class Game {
     // cleared: wait for player to move to next zone
     if (this.waveCleared && this.wave < 3 && this.vixen.pos.z > ZONES[this.wave + 1].z0 + 1) { this.wave++; this.waveCleared = false; }
     if (this.gateOpen && this.vixen.pos.z > GATE_Z - 2.5 && Math.abs(this.vixen.pos.x) < 4) {
-      if (this.level === 2) { if (this.doorT < 0) { this.doorT = 2.6; this.banner('ELEVATOR AHEAD', 'COMING ONLINE', 2.6); this.setObjective('ELEVATOR AHEAD — COMING ONLINE'); } }
+      if (this.level === 2) { if (this.apex === 'none') this.startElevator(); }
       else this.win();
     }
-    if (this.doorT > 0) { this.doorT -= dt; if (this.doorT <= 0) this.win(); }
   }
 
   win() {
@@ -1837,6 +1838,218 @@ export class Game {
       return true;
     });
   }
+  // ------------------------------------------------------------------ APEX ELEVATOR SCRIPT CUT + SLITHER TOP (Misty voice lock 1104, v006)
+  // doorway → NO control movie (ride up → doors open → Slither waiting) → fade → top arena (silver flat + escape bubble/dome)
+  // → Slither ONLY, short hard fight → he escapes into the dome water (never knocked off) → nobody wins, worse for wear.
+  apex: 'none' | 'movie' | 'fight' | 'escape' | 'end' = 'none';
+  private apexT = 0;
+  private apexGroup: THREE.Group | null = null;
+  private elevCab: THREE.Group | null = null;
+  private elevDoors: THREE.Mesh[] = [];
+  private slither: THREE.Group | null = null;
+  private slitherModel: THREE.Object3D | null = null;
+  private slitherLoading = false;
+  private sl = { hp: 900, maxHp: 900, pos: new THREE.Vector3(), heading: 0, cd: 1.2, wind: 0, sweepCd: 4.5, sweepWind: 0, lunge: 0, lungeDir: new THREE.Vector3(), fightT: 0, hitFlash: 0, esc: 0 };
+  private telRing: THREE.Mesh | null = null;
+  static readonly TOP_Z = 400; static readonly TOP_R = 13;
+  private loadSlither() {
+    if (this.slitherModel || this.slitherLoading) return;
+    this.slitherLoading = true;
+    import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
+      const L = new GLTFLoader();
+      const done = (gl: { scene: THREE.Object3D }) => {
+        const m = gl.scene; const b = new THREE.Box3().setFromObject(m); const h = Math.max(0.01, b.max.y - b.min.y);
+        const sc = 3.6 / h; m.scale.setScalar(sc); m.position.y = -b.min.y * sc;
+        m.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh) { me.castShadow = true; me.frustumCulled = false; } });
+        this.slitherModel = m; if (this.slither) { this.slither.clear(); this.slither.add(m); }
+      };
+      L.load('hyperdrive/slither_boss.glb', done, undefined, (e) => { console.warn('[GM] slither boss glb failed, trying LOD0', e); L.load('hyperdrive/slither_lod0.glb', done, undefined, () => console.warn('[GM] slither LOD0 failed — procedural stand-in')); });
+    });
+  }
+  private slitherStandIn() {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x1c8a4a, emissive: 0x0a3a1a, roughness: 0.5 });
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.55, 2.2, 6, 12), mat); body.position.y = 1.7; g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 10), mat); head.position.set(0, 3.2, 0.25); g.add(head);
+    return g;
+  }
+  resetApex() {
+    this.apex = 'none'; this.apexT = 0;
+    if (this.apexGroup) { this.scene.remove(this.apexGroup); this.apexGroup = null; }
+    this.world.setApexTop(false);
+    const f = this.hud['fx-flash']; f.style.transition = ''; f.style.background = ''; f.style.opacity = '0';
+    document.body.classList.remove('apex-movie');
+    const bn = this.hud['boss'].querySelector('.bn'); if (bn) bn.textContent = 'FALCON — IRON ROSE';
+    const scr = document.getElementById('screen-win'); const h = scr?.querySelector('h2'); const sub = scr?.querySelector('.sub');
+    if (h && h.textContent === 'NOBODY WINS') { h.textContent = 'CONTRACT COMPLETE'; h.classList.add('win'); if (sub) sub.textContent = 'Dockyard cleared. Vixen & Kailee extracted.'; }
+  }
+  private buildApex() {
+    const G = new THREE.Group(); G.name = 'apex-elevator-top'; this.apexGroup = G; this.scene.add(G);
+    const steel = new THREE.MeshStandardMaterial({ color: 0x8a90a0, metalness: 0.8, roughness: 0.35 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x15121e, metalness: 0.6, roughness: 0.6 });
+    const neon = new THREE.MeshBasicMaterial({ color: 0xff2fd0 }); const cyan = new THREE.MeshBasicMaterial({ color: 0x2ae8ff });
+    // --- elevator shaft (procedural stand-in) just past the doorway, rises 30m
+    const shaft = new THREE.Group(); shaft.position.set(0, 0, 186); G.add(shaft);
+    for (const [x, z, w, d] of [[-3.2, 0, 0.3, 6.4], [3.2, 0, 0.3, 6.4], [0, -3.2, 6.4, 0.3]] as const) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 36, d), dark); m.position.set(x, 18, z); shaft.add(m); }
+    { const fw = new THREE.Mesh(new THREE.BoxGeometry(6.4, 29.8, 0.3), dark); fw.position.set(0, 14.9, 3.2); shaft.add(fw); } // front wall open only at the top landing
+    { const land = new THREE.Mesh(new THREE.BoxGeometry(8, 0.3, 10), steel); land.position.set(0, 29.85, 9); shaft.add(land); }
+    for (let y = 2; y < 34; y += 3) for (const x of [-3, 3]) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 6), y % 2 ? neon : cyan); s.position.set(x, y, 0); shaft.add(s); }
+    const cab = new THREE.Group(); this.elevCab = cab; shaft.add(cab);
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.25, 5.6), steel); cab.add(floor);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.2, 5.6), steel); roof.position.y = 4.2; cab.add(roof);
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.08, 0.08), neon); strip.position.set(0, 4.05, -2.6); cab.add(strip);
+    this.elevDoors = [];
+    for (const sx of [-1, 1]) { const d = new THREE.Mesh(new THREE.BoxGeometry(2.8, 4, 0.15), steel); d.position.set(sx * 1.4, 2.1, 2.75); cab.add(d); this.elevDoors.push(d); }
+    // --- top arena: silver flat + bubble/dome water escape (far off-lane so the lane geometry never intrudes)
+    const top = new THREE.Group(); top.position.set(0, 0, Game.TOP_Z); G.add(top);
+    const R = Game.TOP_R;
+    const flat = new THREE.Mesh(new THREE.CylinderGeometry(R + 1.5, R + 1.5, 0.3, 48), new THREE.MeshStandardMaterial({ color: 0xc8ccd8, metalness: 0.9, roughness: 0.22 })); flat.position.y = -0.14; flat.receiveShadow = true; top.add(flat);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(R + 1.4, 0.14, 8, 64), neon); rim.rotation.x = Math.PI / 2; rim.position.y = 0.08; top.add(rim);
+    for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2; if (Math.abs(Math.sin(a)) < 0.3 && Math.cos(a) > 0) continue; const w = new THREE.Mesh(new THREE.BoxGeometry(5.6, 1.1, 0.4), dark); w.position.set(Math.sin(a) * (R + 1.7), 0.55, Math.cos(a) * (R + 1.7)); w.rotation.y = a; top.add(w); }
+    // dome over the water pool at the back edge — Slither's escape hatch
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(3.2, 40), new THREE.MeshStandardMaterial({ color: 0x0a6a9a, emissive: 0x0a3a6a, metalness: 0.3, roughness: 0.1, transparent: true, opacity: 0.9 })); pool.rotation.x = -Math.PI / 2; pool.position.set(0, 0.03, R - 1); top.add(pool);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(3.6, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x9ae8ff, emissive: 0x2a6a8a, transparent: true, opacity: 0.22, metalness: 0.2, roughness: 0.05, side: THREE.DoubleSide, depthWrite: false })); dome.position.set(0, 0, R - 1); dome.name = 'escape-dome'; top.add(dome);
+    const domeRing = new THREE.Mesh(new THREE.TorusGeometry(3.6, 0.1, 8, 48), cyan); domeRing.rotation.x = Math.PI / 2; domeRing.position.set(0, 0.06, R - 1); top.add(domeRing);
+    const pl = new THREE.PointLight(0xff2fd0, 30, 30); pl.position.set(0, 6, 0); top.add(pl);
+    const pl2 = new THREE.PointLight(0x2ae8ff, 20, 14); pl2.position.set(0, 3, R - 1); top.add(pl2);
+    // Slither
+    const s = new THREE.Group(); s.name = 'slither'; this.slither = s; G.add(s);
+    s.add(this.slitherModel ?? this.slitherStandIn());
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.2, 1, 40), new THREE.MeshBasicMaterial({ color: 0xff2040, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; this.telRing = ring; G.add(ring);
+  }
+  private startElevator() {
+    this.apex = 'movie'; this.apexT = 0;
+    this.enemies.forEach((e) => e.dispose(this.scene)); this.enemies = [];
+    for (const t of this.turrets) t.g.visible = t.line.visible = false; // edge guns stay EXACTLY 4 (just hidden off-lane)
+    this.hushVoice(); this.input.exitLock();
+    this.banner('', '', 0.01); this.setObjective('—');
+    this.buildApex();
+    this.slither!.position.set(0, 30, 186 + 9); this.slither!.rotation.y = Math.PI; // waiting on the top landing, facing the doors
+    document.body.classList.add('apex-movie');
+  }
+  private castInCab() {
+    const cab = this.elevCab!; const y = cab.position.y;
+    const spots: [Actor, number, number][] = [[this.vixen, 0, 0.6], [this.kailee, 1.3, -0.5], ...this.allies.map((al, i) => [al.a, i ? -1.6 : -0.6, -1.1] as [Actor, number, number])];
+    for (const [a, x, z] of spots) { a.cm.root.position.set(x, y + 0.13, 186 + z); a.cm.root.rotation.y = 0; }
+  }
+  private tickApexMovie(dt: number) {
+    this.apexT += dt; const t = this.apexT, cam = this.camera, cab = this.elevCab!;
+    const f = this.hud['fx-flash'];
+    if (this.apex === 'end') { this.updateCamera(dt, true); if (t > 4.2) { this.endApexScreen(); } return; }
+    // beats: 0-0.6 fade-in · 0.6-5.0 ride up · 5.0-6.4 doors open · 6.4-8.4 Slither waiting · 8.4-9.4 fade · resume at top
+    const ride = THREE.MathUtils.smoothstep(t, 0.6, 5.0); cab.position.y = ride * 30;
+    const open = THREE.MathUtils.smoothstep(t, 5.0, 6.2); this.elevDoors.forEach((d, i) => { d.position.x = (i ? 1 : -1) * (1.4 + open * 2.6); });
+    this.castInCab();
+    const cy = cab.position.y;
+    if (t < 5.4) { cam.position.set(-2.3 + Math.sin(t * 0.4) * 0.2, cy + 3.7, 186 - 2.5); cam.lookAt(0.4, cy + 1.6, 186 + 3); }
+    else { const k = THREE.MathUtils.smoothstep(t, 5.4, 8.0); cam.position.set(-2.3 + k * 2.0, cy + 3.7 - k * 1.3, 186 - 2.5 + k * 3.5); cam.lookAt(0, cy + 2.2, 186 + 9); }
+    if (this.slither) { this.slither.position.y = 30 + Math.sin(t * 2.2) * 0.04; this.slither.rotation.y = Math.PI + Math.sin(t * 0.9) * 0.12; }
+    if (t < 0.6) { f.style.transition = 'none'; f.style.background = '#000'; f.style.opacity = String(1 - t / 0.6); }
+    if (t > 6.3 && t - dt <= 6.3) { this.banner('SLITHER', 'WAITING AT THE TOP', 2); sfx.gateOpen(); this.comsLine('LILI', "That's Slither. Don't let him get close."); }
+    if (t > 8.4) { f.style.transition = 'none'; f.style.background = '#000'; f.style.opacity = String(Math.min(1, (t - 8.4) / 0.7)); }
+    if (t > 9.4) this.beginSlitherFight();
+    this.world.update(dt, this.time, this.vixen.pos);
+  }
+  private beginSlitherFight() {
+    this.apex = 'fight'; this.apexT = 0;
+    this.world.setApexTop(true);
+    const Z = Game.TOP_Z;
+    this.placeHeroes(Z - 9);
+    this.camera.position.set(0, 4, Z - 16);
+    Object.assign(this.sl, { hp: 900, maxHp: 900, cd: 1.0, wind: 0, sweepCd: 4.0, sweepWind: 0, lunge: 0, fightT: 0, hitFlash: 0, esc: 0, heading: Math.PI });
+    this.sl.pos.set(0, 0, Z + 4); this.slither!.position.copy(this.sl.pos); this.slither!.visible = true;
+    if (this.elevCab) this.elevCab.parent!.visible = false;
+    const f = this.hud['fx-flash']; f.style.transition = 'opacity 0.8s'; f.style.opacity = '0'; setTimeout(() => { f.style.background = ''; f.style.transition = ''; }, 900);
+    document.body.classList.remove('apex-movie');
+    this.input.requestLock();
+    this.hud['boss'].classList.remove('hidden');
+    const bn = this.hud['boss'].querySelector('.bn'); if (bn) bn.textContent = 'SLITHER — PINK VIPER APEX';
+    this.banner('SLITHER', 'TOP OF HYPERDRIVE — SURVIVE', 2.2);
+    this.setObjective('SLITHER — hit him, keep moving, survive');
+    this.comsLine('KAMYRN', 'He\'s faster than anything down there. Stay on him!');
+  }
+  /** soft clamp so nobody (Slither included) leaves the silver flat */
+  private clampTop(p: THREE.Vector3, r: number) {
+    const dx = p.x, dz = p.z - Game.TOP_Z, d = Math.hypot(dx, dz);
+    if (d > r) { p.x = dx / d * r; p.z = Game.TOP_Z + dz / d * r; }
+  }
+  private slHit(h: Actor, dmg: number, dir: THREE.Vector3, knock: number) {
+    if (h === this.vixen) { // players get wrecked, but the escape (not a game-over) ends this fight
+      if (this.p.invuln > 0) return;
+      h.hp = Math.max(4, h.hp - dmg); this.p.invuln = 0.5; h.flash(0xff2040, 0.15); sfx.kaileeHurt();
+      h.vel.addScaledVector(dir, knock); this.shake(0.55); this.hitstop = 0.06;
+      this.hud['fx-vignette'].style.opacity = '0.9'; setTimeout(() => { this.hud['fx-vignette'].style.opacity = ''; }, 260);
+    } else this.hurt(h, dmg, dir, knock, { source: 'enemy', heavy: true, stagger: 0.4, color: 0xff2040 });
+  }
+  private tickSlither(dt: number) {
+    if (!this.slither) return;
+    for (const h of [this.vixen, this.kailee, ...this.allies.map((a) => a.a)]) this.clampTop(h.pos, Game.TOP_R);
+    const S = this.sl, s = this.slither, v = this.vixen;
+    const ring = this.telRing!, rm = ring.material as THREE.MeshBasicMaterial;
+    if (this.apex === 'escape') {
+      S.esc += dt; const pool = tmp3.set(0, 0, Game.TOP_Z + Game.TOP_R - 1);
+      if (S.esc < 0.9) { S.pos.lerp(pool, Math.min(1, dt * 3)); s.position.set(S.pos.x, Math.sin(S.esc / 0.9 * Math.PI) * 4, S.pos.z); s.rotation.y = Math.atan2(pool.x - S.pos.x, pool.z - S.pos.z); }
+      else if (S.esc < 1.6) { s.position.set(pool.x, -(S.esc - 0.9) * 6, pool.z); if (S.esc - dt < 0.9) { this.shake(0.6); this.particles.emit(tmp.set(pool.x, 0.5, pool.z), tmp2.set(0, 8, 0), new THREE.Color(0x9ae8ff), 1.2, 1); sfx.waveClear(); } }
+      else s.visible = false;
+      rm.opacity = 0;
+      if (S.esc > 2.0 && this.apex === 'escape') {
+        this.apex = 'end'; this.apexT = 0; this.hud['boss'].classList.add('hidden');
+        this.banner('SLITHER ESCAPED', 'NOBODY WINS — WORSE FOR WEAR', 4);
+        this.setObjective('He got away. Regroup.'); this.comsLine('LILI', "He's gone... through the dome. We're done for now.");
+      }
+      return;
+    }
+    S.fightT += dt; S.cd -= dt; S.sweepCd -= dt; S.hitFlash -= dt;
+    // nearest hero target (prefers Vixen)
+    let tgt: Actor = v, bd = S.pos.distanceTo(v.pos) - 2;
+    for (const h of this.heroes()) { const d = S.pos.distanceTo(h.pos); if (d < bd) { bd = d; tgt = h; } }
+    const to = tmp.set(tgt.pos.x - S.pos.x, 0, tgt.pos.z - S.pos.z); const dist = to.length(); to.normalize();
+    if (S.lunge > 0) {
+      S.lunge -= dt; S.pos.addScaledVector(S.lungeDir, 26 * dt);
+      for (const h of this.heroes()) if (Math.hypot(h.pos.x - S.pos.x, h.pos.z - S.pos.z) < 2.0) { this.slHit(h, h === v ? 24 : 30, S.lungeDir, 14); }
+    } else if (S.wind > 0) {
+      S.wind -= dt; S.heading = angleLerp(S.heading, Math.atan2(to.x, to.z), Math.min(1, dt * 10));
+      ring.position.set(S.pos.x + Math.sin(S.heading) * 3, 0.05, S.pos.z + Math.cos(S.heading) * 3); ring.scale.setScalar(2.2); rm.opacity = 0.4 + 0.4 * Math.abs(Math.sin(this.time * 28));
+      if (S.wind <= 0) { S.lunge = 0.26; S.lungeDir.set(Math.sin(S.heading), 0, Math.cos(S.heading)); rm.opacity = 0; this.shake(0.25); }
+    } else if (S.sweepWind > 0) {
+      S.sweepWind -= dt; ring.position.set(S.pos.x, 0.05, S.pos.z); ring.scale.setScalar(5.2); rm.opacity = 0.3 + 0.4 * Math.abs(Math.sin(this.time * 22));
+      s.rotation.y += dt * 14;
+      if (S.sweepWind <= 0) { rm.opacity = 0; this.shake(0.7); this.particles.emit(tmp2.set(S.pos.x, 0.6, S.pos.z), tmp3.set(0, 4, 0), new THREE.Color(0x3cff5a), 1, 0.8);
+        for (const h of this.heroes()) { const d = Math.hypot(h.pos.x - S.pos.x, h.pos.z - S.pos.z); if (d < 5.2) this.slHit(h, h === v ? 18 : 22, tmp2.set(h.pos.x - S.pos.x, 0, h.pos.z - S.pos.z).normalize(), 18); } }
+    } else {
+      // aggressive chase
+      S.heading = angleLerp(S.heading, Math.atan2(to.x, to.z), Math.min(1, dt * 6));
+      if (dist > 2.2) S.pos.addScaledVector(tmp2.set(Math.sin(S.heading), 0, Math.cos(S.heading)), 7.5 * dt);
+      if (S.sweepCd <= 0 && dist < 6) { S.sweepWind = 0.6; S.sweepCd = 4.5 + Math.random() * 1.5; }
+      else if (S.cd <= 0 && dist < 11) { S.wind = 0.45; S.cd = 1.3 + Math.random() * 0.6; }
+    }
+    this.clampTop(S.pos, Game.TOP_R - 1.2); // invisible collider ring: he never falls / gets knocked off
+    if (S.sweepWind <= 0) s.rotation.y = S.heading;
+    s.position.set(S.pos.x, 0, S.pos.z);
+    // damage in: Vixen melee, Kailee sling, allies close
+    const dv = Math.hypot(v.pos.x - S.pos.x, v.pos.z - S.pos.z);
+    let dmg = 0;
+    if (this.p.atkT > 0 && dv < 3.4) dmg += 110 * dt;
+    if (this.sling.phase === 'launch' && Math.hypot(this.kailee.pos.x - S.pos.x, this.kailee.pos.z - S.pos.z) < 2.8) dmg += 420 * dt;
+    for (const al of this.allies) if (!al.downed && Math.hypot(al.a.pos.x - S.pos.x, al.a.pos.z - S.pos.z) < 2.6) dmg += 12 * dt;
+    if (!this.k.downed && this.sling.phase === 'none' && Math.hypot(this.kailee.pos.x - S.pos.x, this.kailee.pos.z - S.pos.z) < 2.6) dmg += 10 * dt;
+    if (dmg > 0) { S.hp -= dmg; if (S.hitFlash <= 0) { S.hitFlash = 0.12; sfx.kaileeHurt(); } }
+    s.scale.setScalar(S.hitFlash > 0 ? 1.04 : 1);
+    this.setW('hp-boss', Math.max(0, S.hp) / S.maxHp);
+    // escape: HP threshold, timer, or squad on its last legs
+    if (S.hp < S.maxHp * 0.45 || S.fightT > 32 || v.hp <= 8) {
+      this.apex = 'escape'; S.esc = 0; this.banner('SLITHER', 'BREAKING FOR THE DOME', 1.4);
+      this.coms('COM_KAM_04');
+    }
+  }
+  private endApexScreen() {
+    if (this.state !== 'playing') return;
+    this.apex = 'none';
+    const scr = document.getElementById('screen-win');
+    if (scr) { const h = scr.querySelector('h2'); const sub = scr.querySelector('.sub'); if (h) { h.textContent = 'NOBODY WINS'; h.classList.remove('win'); } if (sub) sub.textContent = 'Slither escaped through the dome. Squad worse for wear. HyperDrive isn\'t over.'; }
+    sfx.lose(); this.hushVoice();
+    this.setState('win');
+  }
   /** LEVEL 2: HyperDrive — Pink Viper spacey-tech den (Soft greybox until rebuild; army look REJECTED). */
   startLevel2() {
     this.clearDynamic();
@@ -1854,7 +2067,7 @@ export class Game {
     this.comsLine('LILI', "Skate fast. Don't stop. Watch the mines.");
     this.banner('LEVEL 2 — HYPERDRIVE', 'PINK VIPER DEN · SWARM / COBRA / FANG / HIVE', 2.4);
     this.setObjective('Skate the approach lane — clear the Scar Swarm (decks + rails on both sides)');
-    this.doorT = -1; this.spawnTurrets();
+    this.doorT = -1; this.spawnTurrets(); this.resetApex(); this.loadSlither();
     this.hud['boss'].classList.add('hidden');
   }
   // ------------------------------------------------------------------ Mom's Frenzy + RAGE (protect-mode, Misty 11-03: "even if it kills her")
@@ -2020,6 +2233,9 @@ export class Game {
       get rage() { return g.rageT; },
       get frenzyReason() { return g.frenzyReason; },
       skipToL2: () => { g.startLevel2(); g.setState('playing'); },
+      apexDoor: () => { g.gateOpen = true; g.vixen.pos.set(0, 0, GATE_Z - 1); },
+      apexStart: () => g.startElevator(),
+      apex: () => ({ phase: g.apex, slHp: g.sl.hp, slither: !!g.slither, glb: !!g.slitherModel, vixenHp: g.vixen.hp, turrets: g.turrets.length }),
       winDock: () => { g.gateOpen = true; g.win(); },
       downPayton: () => { const al = g.allies.find((x) => x.key === 'payton'); if (al) g.hurt(al.a, 9999, new THREE.Vector3(0, 0, -1), 0, { source: 'enemy' }); },
       assets: () => ({ loaded: Object.keys(Assets.gltf), failed: Assets.failed, clips: Object.keys(Assets.clips) }),
