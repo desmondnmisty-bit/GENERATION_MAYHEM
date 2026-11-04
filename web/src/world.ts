@@ -93,6 +93,8 @@ export class World {
       this.hdGroup.visible = true;
     }
     for (const o of this.dockDress) o.visible = !hd;
+    if (this.dockPockets) this.dockPockets.visible = !hd;
+    for (const b of this.pocketBoxes) b.active = !hd;
     for (const b of this.dockColliders) b.active = !hd;
     for (const b of this.hdColliders) b.active = hd;
     this.hdWalk.visible = hd;
@@ -243,6 +245,7 @@ export class World {
     this.buildBarriers();
     const kids2 = new Set(scene.children);
     this.buildPuddles();
+    this.buildBreathePockets();
     this.buildHook();
     for (const o of scene.children) if (!kids0.has(o) && (kids1.has(o) || !kids2.has(o))) this.dockDress.push(o);
     this.buildHyperdriveWalk();
@@ -346,6 +349,42 @@ export class World {
     }
   }
 
+  /** Dockyards breathe (Misty 1104): each berth gets a split container wall ~2/3 up the berth with 3 wide gaps,
+   *  so there's a front fight floor + a rear "pocket" to escape, reload, and plan. Plus low crate cover in the pocket. */
+  buildBreathePockets() {
+    const mat = new THREE.MeshStandardMaterial({ color: 0x2b3a4a, roughness: 0.7, metalness: 0.3 });
+    const trim = new THREE.MeshStandardMaterial({ color: 0x39ff14, emissive: 0x39ff14, emissiveIntensity: 1.2 });
+    const crate = new THREE.MeshStandardMaterial({ color: 0x6a4a2a, roughness: 0.9 });
+    const g = new THREE.Group(); g.name = 'dock-breathe-pockets'; this.dockPockets = g;
+    for (const zone of ZONES) {
+      const z = zone.z0 + (zone.z1 - zone.z0) * 0.62;
+      for (const [x0, x1] of [[-11, -4], [3, 10]]) {
+        const cx = (x0 + x1) / 2, sx = x1 - x0;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(sx, 2.6, 2.4), mat); m.position.set(cx, 1.3, z); m.castShadow = m.receiveShadow = true; g.add(m);
+        const t = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.08, 2.45), trim); t.position.set(cx, 2.62, z); g.add(t);
+        this.pocketBoxes.push(this.addBox(cx, z, sx, 2.4, 2.6));
+      }
+      for (const [dx, dz] of [[-7, 6], [6.5, 8], [0, 11]]) {
+        const c = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 1.4), crate); c.position.set(dx, 0.6, z + dz); c.castShadow = true; g.add(c);
+        this.pocketBoxes.push(this.addBox(dx, z + dz, 1.4, 1.4, 1.2));
+      }
+    }
+    // heal station in each pocket: glowing emerald med crate (one charge per berth, recharges on run reset)
+    const medMat = new THREE.MeshStandardMaterial({ color: 0x1fd18a, emissive: 0x1fd18a, emissiveIntensity: 1.6 });
+    for (const zone of ZONES) {
+      const z = zone.z0 + (zone.z1 - zone.z0) * 0.62 + 5;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, 1.1), medMat); m.position.set(-9.5, 0.45, z); g.add(m);
+      const cross = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.2), new THREE.MeshBasicMaterial({ color: 0xffffff })); cross.position.set(-9.5, 1.0, z); g.add(cross);
+      const c2 = cross.clone(); c2.rotation.y = Math.PI / 2; g.add(c2);
+      const light = new THREE.PointLight(0x1fd18a, 6, 7); light.position.set(-9.5, 2, z); g.add(light);
+      this.healSpots.push({ x: -9.5, z, used: false, mesh: m, mat: medMat });
+    }
+    this.scene.add(g);
+  }
+  healSpots: { x: number; z: number; used: boolean; mesh: THREE.Mesh; mat: THREE.MeshStandardMaterial }[] = [];
+  resetHeals() { for (const h of this.healSpots) { h.used = false; h.mesh.visible = true; } }
+  dockPockets?: THREE.Group;
+  pocketBoxes: Box[] = [];
   addBox(cx: number, cz: number, sx: number, sz: number, h = 3) {
     const b: Box = { minX: cx - sx / 2, maxX: cx + sx / 2, minZ: cz - sz / 2, maxZ: cz + sz / 2, h, active: true };
     this.colliders.push(b); return b;

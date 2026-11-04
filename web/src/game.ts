@@ -59,6 +59,7 @@ export class Game {
   runId = 0;
   time = 0;
   // wave flow
+  breatheT = 0;
   wave = 0; waveActive = false; batch = 0; waveCleared = false; gateOpen = false; introT = 0; lastBannerT = 0;
   chaos = 0; chaosReadyAnnounced = false;
   // Mom's Frenzy (the 'chaos' meter, renamed Misty 11-03) + RAGE skate power + level
@@ -152,7 +153,7 @@ export class Game {
     this.comsCd = {}; this.lowHpCd = 0;
     setTimeout(() => this.coms('COM_KAM_01'), 1500); setTimeout(() => this.coms('COM_LIL_01'), 5600);
     this.hushVoice(); this.lastGirlHurtT = -99;
-    this.level = 1; this.world.setArena('dock'); this.spawnMines(); // after arena swap: Hyperdrive colliders off before Dock mines check placement this.rageT = 0; this.rageCd = 0; this.frenzyReason = ''; this.viperSeq = 0;
+    this.level = 1; this.world.setArena('dock'); this.world.resetHeals(); this.spawnMines(); // after arena swap: Hyperdrive colliders off before Dock mines check placement this.rageT = 0; this.rageCd = 0; this.frenzyReason = ''; this.viperSeq = 0;
     sfx.setArena('dock');
     this.setObjective('Skate the green rail north — clear Berth 1');
     this.hud['boss'].classList.add('hidden');
@@ -1602,6 +1603,13 @@ export class Game {
   private updateWaves(dt: number) {
     const zone = ZONES[this.wave];
     if (this.introT > 0) { this.introT -= dt; return; }
+    if (this.level === 1) for (const h of this.world.healSpots) {
+      if (h.used || Math.hypot(this.vixen.pos.x - h.x, this.vixen.pos.z - h.z) > 2.2) continue;
+      h.used = true; h.mesh.visible = false;
+      this.vixen.hp = Math.min(this.vixen.maxHp, this.vixen.hp + 50); this.kailee.hp = this.kailee.maxHp;
+      for (const al of this.allies) al.a.hp = al.a.maxHp;
+      this.banner('MED CRATE', '+50 HP · CREW PATCHED UP — BREATHE, THEN PUSH', 1.6);
+    }
     if (!this.waveActive && !this.waveCleared) {
       const trigger = this.wave === 0 ? -999 : zone.z0 + 3;
       if (this.vixen.pos.z > trigger) {
@@ -1618,7 +1626,9 @@ export class Game {
       const alive = this.enemies.filter((e) => e.state !== 'dead').length;
       if (this.batch < w.batches.length) {
         const b = w.batches[this.batch];
-        if (b.when < 0 || alive <= b.when) {
+        if (b.when < 0 || (alive <= b.when && (this.level === 2 || (this.breatheT += dt) > 5))) {
+          this.breatheT = 0;
+          if (this.level === 1 && this.batch > 0) this.banner('', 'REINFORCEMENTS — USE THE POCKET BEHIND THE CONTAINERS', 1.4);
           const run = this.runId;
           b.list.forEach((s, i) => setTimeout(() => { if (run === this.runId && this.waveActive && this.state !== 'title') this.spawnEnemy(s); }, i * 220));
           this.batch++;

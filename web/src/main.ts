@@ -215,7 +215,7 @@ frame();
   wrap.id = 'cold-open';
   wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;cursor:pointer';
   const v = document.createElement('video');
-  v.src = 'intro/gm_cold_open.mp4'; v.muted = false; v.autoplay = true; v.playsInline = true;
+  v.src = 'intro/GM_ColdOpen_Full_v003.mp4'; v.muted = false; v.autoplay = true; v.playsInline = true;
   v.style.cssText = 'width:100%;height:100%;object-fit:contain';
   const hint = document.createElement('div');
   hint.textContent = 'TAP FOR SOUND · CLICK OR ANY KEY TO SKIP';
@@ -224,13 +224,13 @@ frame();
   cap.style.cssText = 'position:absolute;left:50%;bottom:7%;transform:translateX(-50%);max-width:86vw;text-align:center;color:#fff;font:700 clamp(22px,3.2vw,40px) sans-serif;text-shadow:0 2px 6px #000,0 0 2px #000;background:#0009;padding:10px 22px;border-radius:8px;opacity:0;transition:opacity .2s';
   cap.style.display = 'none'; // overlay captions removed — only baked-in plate captions
   let lines: { speaker: string; line: string; t0: number; t1: number }[] = [];
-  fetch('intro/gm_cold_open_dialogue.json').then((r) => r.json()).then((d: any[]) => { let t = 0; lines = d.map((x) => { const o = { speaker: x.speaker, line: x.line, t0: x.startSec ?? t, t1: 0 }; o.t1 = o.t0 + x.durationSec; t = o.t1; return o; }); }).catch(() => {});
+  if (0) fetch('intro/gm_cold_open_dialogue.json').then((r) => r.json()).then((d: any[]) => { let t = 0; lines = d.map((x) => { const o = { speaker: x.speaker, line: x.line, t0: x.startSec ?? t, t1: 0 }; o.t1 = o.t0 + x.durationSec; t = o.t1; return o; }); }).catch(() => {});
   v.addEventListener('timeupdate', () => {
     const k = lines.find((l) => v.currentTime >= l.t0 && v.currentTime < l.t1);
     if (k) { cap.innerHTML = (k.speaker && k.speaker !== 'VO' ? `<span style="color:#ff5fd8">${k.speaker}:</span> ` : '') + k.line; cap.style.opacity = '1'; } else cap.style.opacity = '0';
   });
   // low love / R&B bed under the cold open (~0.22), fades out on end/skip
-  const bed = new Audio('intro/gm_cold_open_love_bed.mp3'); bed.loop = true; bed.volume = 0.22;
+  const bed = new Audio('intro/gm_cold_open_love_bed.mp3'); bed.loop = true; bed.volume = 0; // Full_v003 has its own baked mix
   const startBed = () => { bed.play().catch(() => {}); };
   v.addEventListener('play', startBed);
   const stopBed = () => { const iv = setInterval(() => { bed.volume = Math.max(0, bed.volume - 0.03); if (bed.volume <= 0) { bed.pause(); clearInterval(iv); } }, 50); };
