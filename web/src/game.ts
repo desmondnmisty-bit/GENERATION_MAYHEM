@@ -92,13 +92,13 @@ export class Game {
     this.proj = new ProjectilePool(scene);
     this.vixen = new Actor('vixen', scene);
     this.addVixenKit(this.vixen);
-    this.vixen.team = 'hero'; this.vixen.radius = 0.45;
+    this.vixen.team = 'hero'; this.vixen.radius = 0.55;
     this.kailee = new Actor('kailee', scene);
     this.addKaileeKit(this.kailee);
     this.kailee.team = 'hero'; this.kailee.radius = 0.4; this.kailee.maxHp = this.kailee.hp = 120;
     // Brianna (deep emerald, gauntlet brawler) + Payton (purple, ranged) — AI allies, Kailee pattern
     for (const [key, name, col, role, side, back] of [['brianna', 'BRIANNA', 0x0f9a5a, 'melee', -2.4, 1.6], ['payton', 'PAYTON', 0x9a4cff, 'ranged', 2.6, 3.6]] as const) {
-      const a = new Actor(key, scene); a.team = 'hero'; a.radius = 0.4; a.maxHp = a.hp = role === 'melee' ? 130 : 100;
+      const a = new Actor(key, scene); a.team = 'hero'; a.radius = 0.55; a.maxHp = a.hp = role === 'melee' ? 130 : 100;
       this.allies.push({ a, key, name, col, role, side, back, downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, retarget: 0, recoverT: 0, swing: 0, sigCd: 4 + Math.random() * 2, sigT: 0, sigShot: 0 });
     }
     for (const al of this.allies) this.addAllyKit(al);
@@ -281,6 +281,48 @@ export class Game {
     this.lastBannerT = Math.min(dur, 1.8);
   }
   setObjective(t: string) { this.hud['objective'].textContent = t; }
+  /** Misty pt307u + steer: ONE real monster-truck tire per side (fat black rubber), ELECTRIFIED — neon sidewall ring, glowing hub/spokes,
+   *  tread lugs edge-glow; spins with ground speed and gets brighter the faster she rolls. Kailee: small quick wheel, lighter glow. */
+  tires: { g: THREE.Group; R: number; mats: THREE.MeshStandardMaterial[]; base: number[]; light: THREE.PointLight; lb: number; last: THREE.Vector3 | null }[] = [];
+  addTruckTires(kit: THREE.Group, R: number, T: number, X: number, accent: number) {
+    const big = R > 0.3, k = big ? 1 : 0.6;
+    const rubber = new THREE.MeshStandardMaterial({ color: 0x0c0c0c, roughness: 0.85, metalness: 0.05 });
+    const lugM = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: accent, emissiveIntensity: 0.35 * k, roughness: 0.8 });
+    const rim = new THREE.MeshStandardMaterial({ color: 0x8a8d94, metalness: 0.9, roughness: 0.3, emissive: accent, emissiveIntensity: 0.25 * k });
+    const neon = new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 2.2 * k, toneMapped: false });
+    const arc = new THREE.MeshStandardMaterial({ color: 0x9ff6ff, emissive: 0x00f6ff, emissiveIntensity: 2.0 * k, toneMapped: false });
+    const tg = new THREE.TorusGeometry(R, T, 18, 48);
+    const rimG = new THREE.CylinderGeometry(R - T * 0.6, R - T * 0.6, T * 1.2, 28);
+    const capG = new THREE.CylinderGeometry(R * 0.22, R * 0.22, T * 1.4, 16);
+    const ringG = new THREE.TorusGeometry(R - T * 0.15, Math.max(0.012, T * 0.12), 8, 48);
+    const spokeG = new THREE.BoxGeometry(T * 1.3, Math.max(0.01, T * 0.12), (R - T * 0.6) * 1.9);
+    const lugG = new THREE.BoxGeometry(T * 1.9, T * 0.35, T * 0.5);
+    for (const sx of [-X, X]) {
+      const w = new THREE.Group(); w.position.set(sx, R + T, 0); kit.add(w);
+      const t = new THREE.Mesh(tg, rubber); t.rotation.y = Math.PI / 2; w.add(t);
+      const r = new THREE.Mesh(rimG, rim); r.rotation.z = Math.PI / 2; w.add(r);
+      const c = new THREE.Mesh(capG, neon); c.rotation.z = Math.PI / 2; w.add(c);
+      for (const side of [-1, 1]) { const ring = new THREE.Mesh(ringG, neon); ring.rotation.y = Math.PI / 2; ring.position.x = side * T * 0.65; w.add(ring); }
+      for (const a of [0, Math.PI / 3, -Math.PI / 3]) { const sp = new THREE.Mesh(spokeG, arc); sp.rotation.x = a; w.add(sp); }
+      if (big) for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; const l = new THREE.Mesh(lugG, lugM); l.position.set(0, Math.sin(a) * (R + T * 0.85), Math.cos(a) * (R + T * 0.85)); l.rotation.x = -a; w.add(l); }
+      const light = new THREE.PointLight(accent, 2 * k, big ? 2.6 : 1.0); light.position.x = sx > 0 ? 0.15 : -0.15; w.add(light);
+      const mats = [neon, arc, lugM, rim];
+      this.tires.push({ g: w, R: R + T, mats, base: mats.map((m) => m.emissiveIntensity), light, lb: light.intensity, last: null });
+    }
+  }
+  tickTires(dt: number) {
+    if (dt <= 0) return;
+    const p = new THREE.Vector3(), t = performance.now() * 0.001;
+    for (const w of this.tires) {
+      w.g.getWorldPosition(p);
+      const v = w.last ? Math.hypot(p.x - w.last.x, p.z - w.last.z) / dt : 0; (w.last ??= new THREE.Vector3()).copy(p);
+      const sp = Math.min(v, 14);
+      w.g.rotation.x += (sp / w.R) * dt;
+      const boost = 1 + sp * 0.35, flick = 1 + (sp > 0.5 ? 0.15 * Math.sin(t * 40 + w.R * 9) : 0);
+      w.mats.forEach((m, i) => (m.emissiveIntensity = w.base[i] * boost * flick));
+      w.light.intensity = w.lb * boost * flick;
+    }
+  }
   // TEMP web stand-in until concept/3D redo: oversized skate wheels + chunky Sophisticated-Brutality cannon.
   addVixenKit(a: Actor) {
     const root = a.cm.root, kit = new THREE.Group(); kit.name = 'vixen-kit';
@@ -294,17 +336,7 @@ export class Game {
     const tireGlow = new THREE.MeshStandardMaterial({ color: 0x1a0830, emissive: 0x6a00ff, emissiveIntensity: 0.9, roughness: 0.4, metalness: 0.5 });
     const neon = new THREE.MeshStandardMaterial({ color: 0x00f6ff, emissive: 0x00f6ff, emissiveIntensity: 3.2, toneMapped: false });
     const hubHot = new THREE.MeshStandardMaterial({ color: 0xff1fcf, emissive: 0xff1fcf, emissiveIntensity: 3.0, metalness: 0.6, roughness: 0.2, toneMapped: false });
-    // ONE big skate-wheel set (Misty pt218u): single massive glowing wheel per side, flank / mid-thigh height. Was 3 overlapping tori per side (read as a tire pile).
-    const WR = 0.4, WT = 0.12, WY = WR + WT, WX = 0.3;
-    const wg = new THREE.TorusGeometry(WR, WT, 16, 40), hg = new THREE.CylinderGeometry(0.2, 0.2, 0.2, 24), rg = new THREE.TorusGeometry(WR + 0.06, 0.03, 8, 48);
-    const spokeG = new THREE.BoxGeometry(0.2, 0.035, WR * 2);
-    for (const sx of [-WX, WX]) {
-      const w = new THREE.Mesh(wg, tireGlow); w.rotation.y = Math.PI / 2; w.position.set(sx, WY, 0); kit.add(w);
-      const h = new THREE.Mesh(hg, hubHot); h.rotation.z = Math.PI / 2; h.position.copy(w.position); kit.add(h);
-      const r = new THREE.Mesh(rg, neon); r.rotation.y = Math.PI / 2; r.position.copy(w.position); r.position.x += sx > 0 ? 0.08 : -0.08; kit.add(r);
-      for (const a of [0, Math.PI / 3, -Math.PI / 3]) { const sp = new THREE.Mesh(spokeG, neon); sp.rotation.x = a; sp.position.copy(w.position); kit.add(sp); }
-      const l = new THREE.PointLight(0x00f6ff, 3, 2.6); l.position.set(sx, WY, 0); kit.add(l);
-    }
+    this.addTruckTires(kit, 0.6, 0.25, 0.48, 0xff1fcf); void tire; void hub; void red; void steel; void tireGlow; void neon; void hubHot;
     // Misty-stamped Soft HANDGUN (3D 1102, LOD1) in right hand; replaces procedural cannon.
     const gun = new THREE.Group(); gun.name = 'vixen-handgun'; gun.position.set(0.42, 1.0, 0.2); kit.add(gun);
     new GLTFLoader().load(handgunUrl, (g) => {
@@ -337,15 +369,9 @@ export class Game {
       const barrels = new THREE.Group(); barrels.name = 'barrels'; gun.add(barrels);
       const pur = new THREE.MeshStandardMaterial({ color: 0x9a4cff, emissive: 0x6a20ff, emissiveIntensity: 1.6 });
       for (let i = 0; i < 6; i++) { const ang = i / 6 * Math.PI * 2; const b = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.46, 6), i % 2 ? steel : pur); b.rotation.x = Math.PI / 2; b.position.set(Math.cos(ang) * 0.05, Math.sin(ang) * 0.05, 0.22); barrels.add(b); }
-      // big amp wheels like Vixen (purple neon)
-      const tire = new THREE.MeshStandardMaterial({ color: 0x1a0830, emissive: 0x6a00ff, emissiveIntensity: 0.9, roughness: 0.4, metalness: 0.5 });
-      const neon = new THREE.MeshStandardMaterial({ color: 0xc08bff, emissive: 0xb070ff, emissiveIntensity: 3, toneMapped: false });
-      const wg = new THREE.TorusGeometry(0.2, 0.085, 10, 24), rg = new THREE.TorusGeometry(0.25, 0.02, 6, 24);
-      for (const sx of [-0.18, 0.18]) for (const z of [-0.26, 0, 0.26]) {
-        const w = new THREE.Mesh(wg, tire); w.rotation.y = Math.PI / 2; w.position.set(sx, 0.15, z); kit.add(w);
-        const r = new THREE.Mesh(rg, neon); r.rotation.y = Math.PI / 2; r.position.copy(w.position); r.position.x += sx > 0 ? 0.05 : -0.05; kit.add(r);
-      }
     }
+    root.traverse((o) => { if (/WarRig_Wheel/i.test(o.name)) o.visible = false; });
+    this.addTruckTires(kit, 0.58, 0.24, 0.46, al.key === 'brianna' ? 0x1fd18a : 0x9a4cff);
     kit.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
     root.add(kit);
   }
@@ -368,6 +394,7 @@ export class Game {
     const laser = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 1.2, 4).rotateX(Math.PI / 2).translate(0, 0, 0.6),
       new THREE.MeshBasicMaterial({ color: 0xff1010, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     laser.position.set(0, -0.035, L * 0.5); laser.name = 'kailee-laser'; gun.add(laser);
+    a.cm.root.traverse((o) => { if (/WarRig_Wheel/i.test(o.name)) o.visible = false; }); const wk = new THREE.Group(); wk.name = 'kailee-wheels'; this.addTruckTires(wk, 0.14, 0.04, 0.16, 0xff4fa0); a.cm.root.add(wk);
   }
   addChaos(n: number, reason?: string) {
     if (this.sling.phase !== 'none') return;
@@ -520,6 +547,7 @@ export class Game {
 
   // ------------------------------------------------------------------ main update
   update(rawDt: number) {
+    this.tickTires(rawDt);
     if (this.state !== 'playing') { this.updateCamera(rawDt, true); return; }
     const dt = Math.min(rawDt, 1 / 30);
     this.time += dt; this.stats.time += dt;
