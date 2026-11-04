@@ -284,6 +284,8 @@ export class Game {
   // TEMP web stand-in until concept/3D redo: oversized skate wheels + chunky Sophisticated-Brutality cannon.
   addVixenKit(a: Actor) {
     const root = a.cm.root, kit = new THREE.Group(); kit.name = 'vixen-kit';
+    // Hide baked GLB WarRig hip tires (they stacked with the stand-in wheels = tire pile).
+    root.traverse((o) => { if (/WarRig_Wheel/i.test(o.name)) o.visible = false; });
     const tire = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5, metalness: 0.3 });
     const hub = new THREE.MeshStandardMaterial({ color: 0xff1fcf, emissive: 0xff1fcf, emissiveIntensity: 1.6, metalness: 0.8, roughness: 0.25 });
     const red = new THREE.MeshStandardMaterial({ color: 0xc8102e, emissive: 0x500010, metalness: 0.7, roughness: 0.3 });
@@ -292,15 +294,17 @@ export class Game {
     const tireGlow = new THREE.MeshStandardMaterial({ color: 0x1a0830, emissive: 0x6a00ff, emissiveIntensity: 0.9, roughness: 0.4, metalness: 0.5 });
     const neon = new THREE.MeshStandardMaterial({ color: 0x00f6ff, emissive: 0x00f6ff, emissiveIntensity: 3.2, toneMapped: false });
     const hubHot = new THREE.MeshStandardMaterial({ color: 0xff1fcf, emissive: 0xff1fcf, emissiveIntensity: 3.0, metalness: 0.6, roughness: 0.2, toneMapped: false });
-    const wg = new THREE.TorusGeometry(0.24, 0.1, 12, 28), hg = new THREE.CylinderGeometry(0.15, 0.15, 0.16, 18), rg = new THREE.TorusGeometry(0.3, 0.025, 8, 32);
-    const spokeG = new THREE.BoxGeometry(0.17, 0.03, 0.42);
-    for (const sx of [-0.2, 0.2]) for (const z of [-0.3, 0, 0.3]) {
-      const w = new THREE.Mesh(wg, tireGlow); w.rotation.y = Math.PI / 2; w.position.set(sx, 0.17, z); kit.add(w);
+    // ONE big skate-wheel set (Misty pt218u): single massive glowing wheel per side, flank / mid-thigh height. Was 3 overlapping tori per side (read as a tire pile).
+    const WR = 0.4, WT = 0.12, WY = WR + WT, WX = 0.3;
+    const wg = new THREE.TorusGeometry(WR, WT, 16, 40), hg = new THREE.CylinderGeometry(0.2, 0.2, 0.2, 24), rg = new THREE.TorusGeometry(WR + 0.06, 0.03, 8, 48);
+    const spokeG = new THREE.BoxGeometry(0.2, 0.035, WR * 2);
+    for (const sx of [-WX, WX]) {
+      const w = new THREE.Mesh(wg, tireGlow); w.rotation.y = Math.PI / 2; w.position.set(sx, WY, 0); kit.add(w);
       const h = new THREE.Mesh(hg, hubHot); h.rotation.z = Math.PI / 2; h.position.copy(w.position); kit.add(h);
-      const r = new THREE.Mesh(rg, neon); r.rotation.y = Math.PI / 2; r.position.copy(w.position); r.position.x += sx > 0 ? 0.06 : -0.06; kit.add(r);
-      for (const a of [0, Math.PI / 2]) { const sp = new THREE.Mesh(spokeG, neon); sp.rotation.x = a; sp.position.copy(w.position); kit.add(sp); }
+      const r = new THREE.Mesh(rg, neon); r.rotation.y = Math.PI / 2; r.position.copy(w.position); r.position.x += sx > 0 ? 0.08 : -0.08; kit.add(r);
+      for (const a of [0, Math.PI / 3, -Math.PI / 3]) { const sp = new THREE.Mesh(spokeG, neon); sp.rotation.x = a; sp.position.copy(w.position); kit.add(sp); }
+      const l = new THREE.PointLight(0x00f6ff, 3, 2.6); l.position.set(sx, WY, 0); kit.add(l);
     }
-    for (const sx of [-0.2, 0.2]) { const l = new THREE.PointLight(0x00f6ff, 2.5, 2.2); l.position.set(sx, 0.2, 0); kit.add(l); }
     // Misty-stamped Soft HANDGUN (3D 1102, LOD1) in right hand; replaces procedural cannon.
     const gun = new THREE.Group(); gun.name = 'vixen-handgun'; gun.position.set(0.42, 1.0, 0.2); kit.add(gun);
     new GLTFLoader().load(handgunUrl, (g) => {

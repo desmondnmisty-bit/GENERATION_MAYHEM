@@ -17,7 +17,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; colo
 .dmg.heal { color: #8dff6a; }
 .dmg.v { color: #ff4060; font-size: 20px; }
 
-#hud { position: absolute; inset: 0; pointer-events: none; font-family: Impact, "Arial Black", sans-serif; letter-spacing: 0.05em; }
+#hud { position: absolute; inset: 0; zoom: 0.68; pointer-events: none; font-family: Impact, "Arial Black", sans-serif; letter-spacing: 0.05em; }
 #hud-bars { position: absolute; left: 22px; top: 18px; }
 .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .bar-label { width: 70px; font-size: 18px; color: var(--mag); text-shadow: 0 0 8px rgba(255,31,207,0.7); }
