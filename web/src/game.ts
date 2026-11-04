@@ -13,6 +13,7 @@ const C = (h: number) => new THREE.Color(h);
 const COL = { blu: C(0x2a7bff), mag: C(0xff1fcf), grn: C(0x39ff14), org: C(0xff8a2b), red: C(0xff2040), cyan: C(0x80e0ff), white: C(0xffffff), yel: C(0xffd040) };
 const UP = new THREE.Vector3(0, 1, 0), EMER = C(0x1fd18a);
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3();
+const IRS_RED = new THREE.Color(0xff3050);
 
 type Spawn = 'v' | 'e' | 'f';
 interface WaveDef { title: string; sub: string; batches: { list: Spawn[]; when: number }[] } // when: spawn when alive <= n (first batch: -1 = at start)
@@ -97,7 +98,7 @@ export class Game {
     this.addKaileeKit(this.kailee);
     this.kailee.team = 'hero'; this.kailee.radius = 0.4; this.kailee.maxHp = this.kailee.hp = 120;
     // Brianna (deep emerald, gauntlet brawler) + Payton (purple, ranged) — AI allies, Kailee pattern
-    for (const [key, name, col, role, side, back] of [['brianna', 'BRIANNA', 0x0f9a5a, 'melee', -2.4, 1.6], ['payton', 'PAYTON', 0x9a4cff, 'ranged', 2.6, 3.6]] as const) {
+    for (const [key, name, col, role, side, back] of [['brianna', 'BRIANNA', 0x0f9a5a, 'melee', -3.6, 2.2], ['payton', 'PAYTON', 0x9a4cff, 'ranged', 3.8, 4.6]] as const) {
       const a = new Actor(key, scene); a.team = 'hero'; a.radius = 0.55; a.maxHp = a.hp = role === 'melee' ? 130 : 100;
       this.allies.push({ a, key, name, col, role, side, back, downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null, retarget: 0, recoverT: 0, swing: 0, sigCd: 4 + Math.random() * 2, sigT: 0, sigShot: 0 });
     }
@@ -520,11 +521,11 @@ export class Game {
 
   spawnEnemy(type: Spawn, pos?: THREE.Vector3) {
     const zone = ZONES[this.wave];
-    const p = pos ? pos.clone() : new THREE.Vector3(-10 + Math.random() * 20, 0, Math.min(zone.z1 - 3, Math.max(zone.z0 + 6, this.vixen.pos.z + 14 + Math.random() * 14)));
+    const p = pos ? pos.clone() : new THREE.Vector3(X_MIN + 4 + Math.random() * (X_EDGE - X_MIN - 8), 0, Math.min(zone.z1 - 3, Math.max(zone.z0 + 6, this.vixen.pos.z + 14 + Math.random() * 14)));
     // keep spawns off colliders
     for (let tries = 0; tries < 8; tries++) {
       if (!this.world.colliders.some((b) => b.active && p.x > b.minX - 1 && p.x < b.maxX + 1 && p.z > b.minZ - 1 && p.z < b.maxZ + 1)) break;
-      p.x = -10 + Math.random() * 20;
+      p.x = X_MIN + 4 + Math.random() * (X_EDGE - X_MIN - 8);
     }
     const key = type === 'v' ? ['viper01', 'viper02', 'viper03'][Math.floor(Math.random() * 3)] : type === 'e' ? 'enforcer' : 'falcon';
     const e = new Enemy(key, this.scene, p);
@@ -538,11 +539,71 @@ export class Game {
       (e as any).squad = sq.squad; (e as any).fin = sq.fin;
       if (this.viperSeq++ % 3 === 0) this.dmg.spawn(tmp.copy(p).setY(2.4), sq.squad, 'big');
     }
+    if (type === 'e' || type === 'f') this.irsReadable(e, type);
     if (type === 'f') {
       this.hud['boss'].classList.remove('hidden');
       e.cm.root.scale.setScalar(1);
     }
     return e;
+  }
+
+  private irsSeenWave = -1;
+  /** 1104: Iron Rose must POP on dock night — emissive red rim, bigger silhouette, nameplate, first-sight callout. */
+  private irsReadable(e: Enemy, type: Spawn) {
+    if (type === 'e') e.cm.root.scale.multiplyScalar(1.18);
+    e.cm.root.traverse((o: any) => {
+      if (!o.isMesh || !o.material) return;
+      const ms = Array.isArray(o.material) ? o.material : [o.material];
+      o.material = ms.map((m: any) => { const c = m.clone(); if (c.emissive) { c.emissive.setHex(0xff2040); c.emissiveIntensity = Math.max(c.emissiveIntensity || 0, 0.28); } if (c.color && c.color.getHSL) { const hsl = { h: 0, s: 0, l: 0 }; c.color.getHSL(hsl); if (hsl.l < 0.18) c.color.offsetHSL(0, 0, 0.12); } return c; });
+      if (o.material.length === 1) o.material = o.material[0];
+    });
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64; const c = cv.getContext('2d')!;
+    c.font = 'bold 40px Impact, sans-serif'; c.textAlign = 'center'; c.lineWidth = 6; c.strokeStyle = '#000'; c.fillStyle = '#ff3050';
+    const label = type === 'f' ? 'FALCON' : 'IRON ROSE'; c.strokeText(label, 128, 46); c.fillText(label, 128, 46);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthTest: false, fog: false }));
+    sp.scale.set(2.4, 0.6, 1); sp.position.y = type === 'f' ? 3.6 : 3.0; sp.renderOrder = 10; e.cm.root.add(sp);
+    if (this.irsSeenWave !== this.wave) {
+      this.irsSeenWave = this.wave;
+      this.banner('IRON ROSE INBOUND', type === 'f' ? 'FALCON IS HERE — BREAK HIM' : 'ENFORCERS — WATCH FOR THE QUAY CRUSHER SLAM', 1.6);
+      this.dmg.spawn(tmp.copy(e.pos).setY(3.2), 'IRON ROSE', 'big'); this.shake(0.3);
+    }
+  }
+
+  // ---- objective marker (1104: player must always know where to go)
+  private objArrow?: THREE.Group; private objDist?: HTMLElement; private crumbT = 0;
+  private objectiveGoal(out: THREE.Vector3): boolean {
+    if (this.gateOpen) { out.set(0, 0, GATE_Z); return true; }
+    if (this.waveActive) {
+      let best: Enemy | null = null, bd = 1e9;
+      for (const e of this.enemies) { if (e.state === 'dead') continue; const d = e.pos.distanceTo(this.vixen.pos) - (e.def.kind === 'falcon' ? 20 : 0); if (d < bd) { bd = d; best = e; } }
+      if (best) { out.copy(best.pos); return true; }
+      return false;
+    }
+    const zi = this.waveCleared ? Math.min(3, this.wave + 1) : this.wave;
+    out.set(0, 0, Math.max(ZONES[zi].z0 + 5, this.vixen.pos.z < ZONES[zi].z0 ? ZONES[zi].z0 + 5 : ZONES[zi].z0 + 5)); return true;
+  }
+  private updateObjMarker(dt: number) {
+    if (!this.objArrow) {
+      const g = new THREE.Group();
+      const m = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 4).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x39ff14, transparent: true, opacity: 0.9, depthTest: false, fog: false }));
+      m.position.z = 1.6; m.renderOrder = 11; g.add(m); this.scene.add(g); this.objArrow = g;
+      const d = document.createElement('div'); d.id = 'obj-dist'; d.style.cssText = 'position:absolute;top:44px;left:50%;transform:translateX(-50%);font:bold 15px system-ui,sans-serif;color:#39ff14;text-shadow:0 0 6px #000,0 0 2px #000;pointer-events:none;z-index:5';
+      (this.hud['objective'].parentElement || document.body).appendChild(d); this.objDist = d;
+    }
+    const goal = tmp2.set(0, 0, 0); const ok = this.objectiveGoal(goal);
+    const v = this.vixen; const g = this.objArrow!;
+    g.visible = ok; this.objDist!.style.display = ok ? '' : 'none';
+    if (!ok) return;
+    const dx = goal.x - v.pos.x, dz = goal.z - v.pos.z, dist = Math.hypot(dx, dz);
+    g.position.set(v.pos.x, v.y + 0.25, v.pos.z); g.rotation.y = Math.atan2(dx, dz);
+    const near = dist < 4; g.visible = !near;
+    this.objDist!.textContent = (this.waveActive ? '◆ TARGET ' : this.gateOpen ? '▲ GATE ' : '▲ NEXT ') + Math.round(dist) + 'm';
+    // breadcrumbs: faint green rings dropped along the way to the goal
+    this.crumbT -= dt;
+    if (this.crumbT <= 0 && !this.waveActive && dist > 8) {
+      this.crumbT = 0.6;
+      for (let i = 1; i <= 3; i++) { const k = Math.min(dist - 2, i * 4) / dist; this.trans.ring(new THREE.Vector3(v.pos.x + dx * k, 0.06, v.pos.z + dz * k), 0x39ff14, 0.1, 0.9, 0.5); }
+    }
   }
 
   // ------------------------------------------------------------------ main update
@@ -573,6 +634,7 @@ export class Game {
     for (const e of this.enemies) e.syncVisual(wdt, 0);
     this.enemies = this.enemies.filter((e) => { if (e.state === 'dead' && e.deadT > 1.4) { e.dispose(this.scene); return false; } return true; });
     this.world.update(dt, this.time, this.vixen.pos);
+    this.updateObjMarker(dt);
     this.particles.update(dt);
     this.trans.update(dt);
     if (this.stats.comboT > 0) { this.stats.comboT -= dt; if (this.stats.comboT <= 0) this.stats.combo = 0; }
@@ -655,7 +717,7 @@ export class Game {
       v.vel.z += (tvz - v.vel.z) * Math.min(1, grip * dt);
     }
     // hop
-    if (inp.hit('Space') && v.grounded && !sling && !this.pinnedBy(v)) { v.vy = 7.2; v.grounded = false; v.y = 0.01; sfx.hop(); v.squash = 0.3; }
+    // 1104 vision: hop removed — Space/Shift = brake only
     // aim
     const baseAim = inp.locked ? this.camYaw : v.heading;
     p.aimYaw = this.aimAssist(baseAim, 9, inp.locked ? 0.45 : 0.9);
@@ -733,20 +795,22 @@ export class Game {
     p.coneCd = 1.5;
     v.heading = p.aimYaw;
     const origin = tmp3.copy(v.pos).setY(v.y + 1.25);
-    this.trans.cone(origin, p.aimYaw, 7.0, 0.38, 0xff1fcf, 0.3);
+    this.trans.cone(origin, p.aimYaw, 10.0, 0.55, 0xff1fcf, 0.5);
     const cdir = dirFromYaw(p.aimYaw, new THREE.Vector3());
-    for (let i = 1; i <= 3; i++) this.trans.vring(origin.clone().addScaledVector(cdir, i * 2.1), cdir, i === 2 ? 0xffffff : 0xff1fcf, 0.15, 0.4 + i * 0.55, 0.16 + i * 0.06);
-    sfx.cone(); this.shake(0.2);
+    for (let i = 1; i <= 5; i++) this.trans.vring(origin.clone().addScaledVector(cdir, i * 2.0), cdir, i % 2 === 0 ? 0xffffff : 0xff1fcf, 0.2, 0.5 + i * 0.6, 0.2 + i * 0.07);
+    sfx.cone(); this.shake(0.5);
+    { const vg = this.hud['fx-vignette']; vg.style.boxShadow = 'inset 0 0 160px 40px rgba(255,31,207,0.85)'; vg.style.opacity = '1'; setTimeout(() => { vg.style.opacity = '0'; setTimeout(() => { vg.style.boxShadow = ''; }, 300); }, 180); }
+    this.dmg.spawn(tmp.copy(v.pos).setY(2.8), 'SONIC SCREAM', 'big');
     if (v.anim.has('Slingshot_Release')) v.anim.once('Slingshot_Release', 0.4);
     v.punchL = 1; v.punchR = 1;
     const fx = dirFromYaw(p.aimYaw, tmp2.clone());
     for (const e of this.enemies) {
       if (e.state === 'dead') continue;
       const dx = e.pos.x - v.pos.x, dz = e.pos.z - v.pos.z, d = Math.hypot(dx, dz);
-      if (d > 7.5 + e.radius) continue;
-      if (Math.abs(angleDiff(p.aimYaw, Math.atan2(dx, dz))) > 0.62) continue;
+      if (d > 10 + e.radius) continue;
+      if (Math.abs(angleDiff(p.aimYaw, Math.atan2(dx, dz))) > 0.72) continue;
       const dir = new THREE.Vector3(dx, 0, dz).normalize().lerp(fx, 0.4).normalize();
-      this.hurt(e, 16, dir, 14 * (1 - d / 10), { source: 'vixen', stagger: 0.9, up: 3, heavy: e.def.kind === 'enforcer', color: 0xff60e0 });
+      this.hurt(e, 16, dir, 14 * Math.max(0.2, 1 - d / 12), { source: 'vixen', stagger: 0.9, up: 3, heavy: e.def.kind === 'enforcer', color: 0xff60e0 });
     }
     // sonic cone also shatters incoming bolts
     for (const pr of this.proj.list) {
@@ -1206,8 +1270,8 @@ export class Game {
     const col = ENEMY_FINISHERS.pink_pounce.color;
     const mat = () => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide });
     const g = new THREE.Group();
-    const ring = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.55, 40).rotateX(-Math.PI / 2), mat()); ring.name = 'ring'; ring.position.y = 0.05; g.add(ring);
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(1.15, 40).rotateX(-Math.PI / 2), mat()); disc.name = 'disc'; disc.position.y = 0.04; g.add(disc);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.4, 1.52, 48).rotateX(-Math.PI / 2), mat()); ring.name = 'ring'; ring.position.y = 0.05; g.add(ring);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(1.15, 40).rotateX(-Math.PI / 2), mat()); disc.name = 'disc'; disc.position.y = 0.04; disc.visible = false; g.add(disc); // 1104: no filled ground discs
     const lane = new THREE.Group(); lane.name = 'lane'; g.add(lane);
     const sh = new THREE.Shape(); sh.moveTo(-0.7, 0); sh.lineTo(0, 0.55); sh.lineTo(0.7, 0); sh.lineTo(0.7, 0.28); sh.lineTo(0, 0.83); sh.lineTo(-0.7, 0.28); sh.closePath();
     const chevGeo = new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2);
@@ -1346,14 +1410,14 @@ export class Game {
           const radial = dist > ideal + 2 ? 1 : dist < ideal - 2 ? -1 : 0;
           wantVX = (nx * radial + -nz * tang * 0.5) * def.speed; wantVZ = (nz * radial + nx * tang * 0.5) * def.speed;
           if (e.cd <= 0) {
-            if (dist < 3.2) { e.state = 'windup'; e.stateT = 0.85; e.attackKind = 'slam'; sfx.telegraph(); }
+            if (dist < 3.2) { e.state = 'windup'; e.stateT = 0.95; e.attackKind = 'slam'; sfx.telegraph(); this.trans.ring(e.pos, 0xff2040, 0.9, 3.6, 0.15); this.dmg.spawn(tmp.copy(e.pos).setY(3.4), 'QUAY CRUSHER!', 'big'); }
             else if (dist < 17) { e.state = 'windup'; e.stateT = 0.8; e.attackKind = 'shoot'; }
           }
         } else { // falcon
           steer(t.pos.x, t.pos.z, def.speed);
           const hpk = e.hp / e.maxHp;
           if ((hpk < 0.66 && e.summoned === 0) || (hpk < 0.33 && e.summoned === 1)) { e.summoned++; e.state = 'windup'; e.stateT = 0.9; e.attackKind = 'summon'; this.trans.ring(e.pos, 0xff2040, 0.5, 8, 0.8); sfx.scream(); }
-          else if (e.cd <= 0 && dist > 5 && dist < 18 && Math.random() < 0.5) { e.state = 'windup'; e.stateT = 1.05; e.attackKind = 'dash'; e.dashDir.set(dx, 0, dz).normalize(); sfx.telegraph(); }
+          else if (e.cd <= 0 && dist > 5 && dist < 18 && Math.random() < 0.5) { e.state = 'windup'; e.stateT = 1.05; e.attackKind = 'dash'; e.dashDir.set(dx, 0, dz).normalize(); sfx.telegraph(); this.dmg.spawn(tmp.copy(e.pos).setY(3.8), 'FALCON DIVE!', 'big'); this.trans.ring(e.pos, 0xff2040, 1.0, 5, 0.2); }
           else if (e.cd <= 0 && dist < 2.8) { e.state = 'windup'; e.stateT = 0.6; e.attackKind = 'melee'; sfx.telegraph(); }
           else if (e.cd <= 0) e.cd = 0.3;
         }
@@ -1491,14 +1555,16 @@ export class Game {
       }
       case 'slam': {
         e.state = 'attack'; e.stateT = 0.4;
-        this.trans.ring(e.pos, 0xff2040, 0.5, 3.4, 0.4);
-        this.shake(0.15); sfx.impact();
+        this.trans.ring(e.pos, 0xff2040, 0.6, 4.2, 0.5); this.trans.ring(e.pos, 0xffffff, 0.3, 2.4, 0.3);
+        this.trans.flash(tmp.copy(e.pos).setY(0.6), 0xff2040, 0.25, 2.2, 0.35);
+        this.particles.burst(tmp.copy(e.pos).setY(0.3), 22, IRS_RED, 7, 0.25, 0.7, 4, 1);
+        this.shake(0.55); this.hitstop = Math.max(this.hitstop, 0.05); sfx.impact(); sfx.clang();
         for (const h of this.heroes()) { const hd = h.pos.distanceTo(e.pos); if (hd < 3.4 && h.y < 0.8) this.hurt(h, 15, tmp.set(h.pos.x - e.pos.x, 0, h.pos.z - e.pos.z).normalize(), 10, { source: 'enemy' }); }
         break;
       }
       case 'dash': {
         e.state = 'dash'; e.stateT = 0.55; e.dashHit.clear(); e.heading = Math.atan2(e.dashDir.x, e.dashDir.z);
-        sfx.slingshotLaunch();
+        sfx.slingshotLaunch(); if (e.def.kind === 'falcon') { this.shake(0.45); this.particles.burst(tmp.copy(e.pos).setY(0.5), 18, IRS_RED, 6, 0.2, 0.5, 4, 1); }
         break;
       }
       case 'summon': {

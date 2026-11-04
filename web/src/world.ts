@@ -3,8 +3,8 @@ import dockNightSkyUrl from './assets/sky/GM_Sky_DockNight_Equirect_PoleFade.png
 import * as THREE from 'three';
 import { Assets, dockPiece } from './assets';
 
-export const X_MIN = -14;      // west container wall face
-export const X_EDGE = 14.2;    // quay edge (water beyond)
+export const X_MIN = -18;      // west container wall face
+export const X_EDGE = 18;    // quay edge (water beyond)
 export const Z_START = -6;
 export const ZONES = [
   { z0: -8, z1: 40, barrier: 42, name: 'BERTH 1' },
@@ -369,6 +369,15 @@ export class World {
         const m2 = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.4, 5), mat); m2.position.set(ax, 1.7, z + az); m2.castShadow = m2.receiveShadow = true; g.add(m2);
         this.pocketBoxes.push(this.addBox(ax, z + az, 2.4, 5, 3.4));
       }
+      // 1104 spread: side alleys + raised decks with ramps in the widened lanes (break the single-tube read)
+      for (const [sx, sz, flip] of [[-14.5, 16, 1], [14, -6, -1]] as const) {
+        const deckH = 1.2, rampL = 4, deckL = 6;
+        const deck = new THREE.Mesh(new THREE.BoxGeometry(3, deckH, deckL), crate); deck.position.set(sx, deckH / 2, z + sz); deck.castShadow = deck.receiveShadow = true; g.add(deck);
+        const db = this.addBox(sx, z + sz, 3, deckL, deckH); db.ride = 'top'; this.pocketBoxes.push(db);
+        const rz = z + sz - flip * (deckL / 2 + rampL / 2);
+        const ramp = new THREE.Mesh(new THREE.BoxGeometry(3, 0.15, Math.hypot(rampL, deckH)), mat); ramp.position.set(sx, deckH / 2, rz); ramp.rotation.x = flip * -Math.atan2(deckH, rampL); g.add(ramp);
+        const rb = this.addBox(sx, rz, 3, rampL, deckH); rb.ride = 'ramp'; rb.rampDir = flip as 1 | -1; this.pocketBoxes.push(rb);
+      }
       for (const [dx, dz] of [[-7, 6], [6.5, 8], [0, 11]]) {
         const c = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 1.4), crate); c.position.set(dx, 0.6, z + dz); c.castShadow = true; g.add(c);
         this.pocketBoxes.push(this.addBox(dx, z + dz, 1.4, 1.4, 1.2));
@@ -428,8 +437,8 @@ export class World {
     const nrm = Assets.tex.asphaltNormal;
     if (nrm) { nrm.wrapS = nrm.wrapT = THREE.RepeatWrapping; nrm.repeat.set(6, 30); }
     const mat = new THREE.MeshStandardMaterial({ map: albedo, roughnessMap: rough, roughness: 1, metalness: 0.15, normalMap: nrm || null, normalScale: new THREE.Vector2(0.25, 0.25), envMapIntensity: 0.55 });
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(36, 200), mat);
-    ground.rotation.x = -Math.PI / 2; ground.position.set(-3.8, 0, 85);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(42, 200), mat);
+    ground.rotation.x = -Math.PI / 2; ground.position.set(-3, 0, 85);
     ground.receiveShadow = true;
     this.scene.add(ground);
 

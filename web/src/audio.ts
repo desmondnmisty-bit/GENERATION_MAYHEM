@@ -80,10 +80,10 @@ export class Sfx {
   punch(heavy = false) { this.noise(0.12, heavy ? 0.9 : 0.6, heavy ? 900 : 1400, 1.2); this.tone('sine', heavy ? 160 : 220, 60, 0.12, 0.7); }
   whiff() { this.noise(0.09, 0.25, 2500, 2, 'bandpass', 0, 900); }
   hit() { this.noise(0.08, 0.5, 600, 2); this.tone('square', 140, 50, 0.08, 0.25); }
-  cone() { this.tone('sawtooth', 320, 80, 0.45, 0.35); this.tone('sine', 900, 180, 0.4, 0.3); this.noise(0.45, 0.5, 1800, 0.6, 'bandpass', 0, 300); }
+  cone() { this.tone('sawtooth', 340, 70, 0.75, 0.55); this.tone('square', 680, 140, 0.6, 0.22); this.tone('sine', 1100, 180, 0.7, 0.45); this.noise(0.8, 0.85, 2200, 0.6, 'bandpass', 0, 300); }
   chaosReady() { [0, 0.09, 0.18, 0.3].forEach((d, i) => this.tone('sawtooth', [220, 330, 440, 660][i], [220, 330, 440, 660][i] * 1.01, 0.35, 0.22, d)); this.tone('sine', 55, 55, 0.9, 0.6); }
   tether() { this.tone('sine', 200, 1400, 0.55, 0.3); }
-  scream() { if (!this.ctx) return; for (let i = 0; i < 3; i++) this.tone('sawtooth', 520 + i * 37, 1500 + i * 60, 0.5, 0.18); this.noise(0.9, 0.7, 3000, 0.5, 'highpass'); }
+  scream() { if (!this.ctx) return; for (let i = 0; i < 4; i++) this.tone('sawtooth', 520 + i * 37, 1500 + i * 60, 0.7, 0.22); this.noise(1.1, 0.85, 3000, 0.5, 'highpass'); }
   slingshotLaunch() { this.tone('sawtooth', 90, 30, 0.9, 0.8); this.noise(0.9, 1.0, 400, 0.4, 'lowpass', 0, 80); this.tone('sine', 1800, 200, 0.6, 0.25); }
   impact() { this.tone('sine', 110, 30, 0.6, 0.9); this.noise(0.5, 0.8, 300, 0.5, 'lowpass', 0, 60); }
   enemyDie() { this.tone('square', 300, 40, 0.3, 0.2); this.noise(0.25, 0.4, 900, 1, 'bandpass', 0, 200); }
