@@ -222,7 +222,16 @@ frame();
   hint.style.cssText = 'position:absolute;right:24px;top:20px;color:#fff8;font:700 16px sans-serif;letter-spacing:1px;padding:8px 14px';
   const card = document.createElement('div');
   card.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 8vw;color:#ff2bd6;font:800 clamp(28px,5vw,72px) "Arial Black",Impact,sans-serif;letter-spacing:2px;line-height:1.2;text-shadow:0 0 6px #ff2bd6,0 0 18px #ff2bd6,0 0 42px #c0008f;opacity:0;transition:opacity .7s;pointer-events:none';
-  const story = ['They took her man.', 'She paid the bills.', 'Three daughters.<br>Three blood contracts.', "Mom wasn't in the room.", 'Then the call.', 'Mama Bear is back.', 'Can you Survive the Circuit?'];
+  const story = [
+    '1995 — Vixen and Des.<br>Young. In love. Before the Circuit.',
+    '1996 — both locked orange.<br>He sat. She got out and paid every bill.',
+    'Payton 1998. Brianna 2003. Kailee 2008.<br>Three daughters while Des cycled jail.',
+    'Iron Rose Syndicate forced blood contracts.<br>Death Derby. Her babies signed.',
+    "Mom wasn't in that room.<br>She would never have let it.",
+    'He walked with another woman and her kids.<br>She still loved him. She hates that.',
+    'The call hit. Retirement ends.<br>Fixer. Finisher. Mama Bear is back.',
+    'Can you Survive the Circuit?'
+  ];
   wrap.append(v, card, hint); document.body.appendChild(wrap);
   let phase: 'cards' | 'movie' | 'done' = 'cards';
   let timer: any = 0; let i = 0;
@@ -237,7 +246,7 @@ frame();
     if (phase !== 'cards') return;
     if (i >= story.length) { card.style.opacity = '0'; timer = setTimeout(startMovie, 800); return; }
     card.innerHTML = story[i++]; card.style.opacity = '1';
-    timer = setTimeout(() => { card.style.opacity = '0'; timer = setTimeout(show, 800); }, 2800);
+    timer = setTimeout(() => { card.style.opacity = '0'; timer = setTimeout(show, 800); }, 3400);
   };
   const advance = () => { if (phase === 'cards') startMovie(); else done(); };
   const onKey = (_e: KeyboardEvent) => advance();
