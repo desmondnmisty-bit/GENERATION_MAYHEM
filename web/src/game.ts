@@ -91,6 +91,7 @@ export class Game {
     this.dmg = new DamageNumbers();
     this.beam = new Beam(scene);
     this.proj = new ProjectilePool(scene);
+    { const orig = this.proj.fire.bind(this.proj); (this.proj as any).fire = (kind: any, from: THREE.Vector3, dir: THREE.Vector3, speed: number, dmg: number, team: any, src: any) => { this.gunFx(from, dir, src, kind); return orig(kind, from, dir, speed, dmg, team, src); }; }
     this.vixen = new Actor('vixen', scene);
     this.addVixenKit(this.vixen);
     this.vixen.team = 'hero'; this.vixen.radius = 0.55;
@@ -224,8 +225,7 @@ export class Game {
       const c = new THREE.Mesh(new THREE.CircleGeometry(1.3, 16), new THREE.MeshBasicMaterial({ color: 0x0a0806, transparent: true, opacity: 0.75 }));
       c.rotation.x = -Math.PI / 2; c.position.set(m.x, 0.02, m.z); this.scene.add(c); this.craters.push(c);
       const at = tmp2.set(m.x, 0.6, m.z);
-      this.particles.burst(at, 30, COL.yel, 9, 0.2, 0.6); this.particles.burst(at, 18, COL.org, 6, 0.25, 0.9);
-      sfx.mine(); if (Math.hypot(this.vixen.pos.x - m.x, this.vixen.pos.z - m.z) < 20) this.shake(0.6);
+      this.bang(at, 1, Math.hypot(this.vixen.pos.x - m.x, this.vixen.pos.z - m.z) < 20);
       for (const a of actors) {
         const d = Math.hypot(a.pos.x - m.x, a.pos.z - m.z);
         if (d > 3.6) continue;
@@ -636,6 +636,7 @@ export class Game {
     this.kailee.syncVisual(wdt, 0);
     for (const al of this.allies) al.a.syncVisual(wdt, 0);
     for (const e of this.enemies) e.syncVisual(wdt, 0);
+    this.tickGunFx(dt);
     this.enemies = this.enemies.filter((e) => { if (e.state === 'dead' && e.deadT > 1.4) { e.dispose(this.scene); return false; } return true; });
     this.world.update(dt, this.time, this.vixen.pos);
     this.updateObjMarker(dt);
@@ -644,6 +645,7 @@ export class Game {
     if (this.stats.comboT > 0) { this.stats.comboT -= dt; if (this.stats.comboT <= 0) this.stats.combo = 0; }
     if (this.lastBannerT > 0) { this.lastBannerT -= dt; if (this.lastBannerT <= 0) this.hud['banner'].style.opacity = '0'; }
     sfx.intensity = this.waveActive ? (this.wave >= 3 ? 1 : 0.7) : 0.25;
+    sfx.setMusicState(this.musicThreat());
     sfx.updateMusic();
     sfx.setSkate(this.vixen.speed / 11, this.vixen.grounded);
     this.updateCamera(dt, false);
@@ -1806,7 +1808,7 @@ export class Game {
       if (!t.alive) continue;
       const dx = v.pos.x - t.x, dz = v.pos.z - t.z, d = Math.hypot(dx, dz);
       // destroyable: Vixen melee in reach (deck top) or any attack within 3m chips it
-      if (this.p.atkT > 0 && d < 3.2) { t.hp -= dt * 70; if (t.hp <= 0) { t.alive = false; this.scene.remove(t.g, t.line); this.shake(0.3); this.banner('EDGE GUN DOWN', '', 0.8); this.particles.emit(tmp3.set(t.x, t.y + 0.5, t.z), tmp.set(0, 3, 0), new THREE.Color(0x2ae8ff), 0.4, 0.6); continue; } }
+      if (this.p.atkT > 0 && d < 3.2) { t.hp -= dt * 70; if (t.hp <= 0) { t.alive = false; this.scene.remove(t.g, t.line); this.bang(tmp3.set(t.x, t.y + 0.6, t.z), 0.8); this.banner('EDGE GUN DOWN', '', 0.8); this.particles.emit(tmp3.set(t.x, t.y + 0.5, t.z), tmp.set(0, 3, 0), new THREE.Color(0x2ae8ff), 0.4, 0.6); continue; } }
       const inRange = d < 26 && d > 2 && v.pos.z < t.z + 4;
       t.g.rotation.y = Math.atan2(dx, dz);
       const lm = t.line.material as THREE.LineBasicMaterial;
@@ -1821,6 +1823,7 @@ export class Game {
           const m = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff3a8a }));
           m.position.set(t.x, t.y + 0.75, t.z);
           const dir = new THREE.Vector3(v.pos.x - t.x + (Math.random() - 0.5) * 1.6, 1 - (t.y + 0.75), v.pos.z - t.z + (Math.random() - 0.5) * 1.6).normalize().multiplyScalar(22);
+          { const nd = dir.clone().normalize(); t.g.position.addScaledVector(nd.clone().setY(0), -0.12); this.gunFx(m.position, nd, 'turret', 'pistol'); }
           this.scene.add(m); this.tShots.push({ m, v: dir, t: 1.6 });
         }
         if (t.burst === 0) t.cd = 3.2 + Math.random() * 1.5;
@@ -2051,6 +2054,64 @@ export class Game {
     sfx.lose(); this.hushVoice();
     this.setState('win');
   }
+  // ------------------------------------------------------------------ REAL-GUN FX (every gun: Vixen, Kailee, Brianna gauntlet, Payton gatlings, allies, enemies, edge guns)
+  // muzzle flash + shell casing + recoil kick + smoke puff + tracer + punch audio. Pooled meshes, phone-friendly.
+  private flashPool: { m: THREE.Mesh; t: number }[] = [];
+  private tracerPool: { m: THREE.Mesh; t: number }[] = [];
+  private recoils: { o: THREE.Object3D; z: number }[] = [];
+  private casingCd = 0;
+  private gunFx(from: THREE.Vector3, dir: THREE.Vector3, src: string, kind: string) {
+    const d = new THREE.Vector3().copy(dir).normalize();
+    const heavy = src === 'brianna' && kind === 'bolt', gat = src === 'payton', enemy = src === 'enemy', turret = src === 'turret';
+    const col = enemy || turret ? 0xff5a8a : heavy ? 0x60ff70 : gat ? 0xffd27a : 0xfff0b0;
+    let f = this.flashPool.find((x) => x.t <= 0);
+    if (!f) { if (this.flashPool.length > 24) f = this.flashPool[0]; else { const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); this.scene.add(m); f = { m, t: 0 }; this.flashPool.push(f); } }
+    f.t = 0.06; f.m.visible = true; f.m.position.copy(from).addScaledVector(d, 0.35); f.m.scale.set(1, 1, heavy ? 3.2 : 2.2).multiplyScalar(heavy ? 1.6 : gat ? 0.8 : 1); f.m.lookAt(tmp2.copy(f.m.position).add(d)); f.m.rotateZ(Math.random() * 3);
+    (f.m.material as THREE.MeshBasicMaterial).color.setHex(col);
+    let tr = this.tracerPool.find((x) => x.t <= 0);
+    if (!tr) { if (this.tracerPool.length > 30) tr = this.tracerPool[0]; else { const m = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); this.scene.add(m); tr = { m, t: 0 }; this.tracerPool.push(tr); } }
+    const L = heavy ? 4 : 6; tr.t = 0.08; tr.m.visible = true; tr.m.scale.set(heavy ? 3 : 1, heavy ? 3 : 1, L); tr.m.position.copy(from).addScaledVector(d, 0.4 + L / 2); tr.m.lookAt(tmp2.copy(tr.m.position).add(d));
+    (tr.m.material as THREE.MeshBasicMaterial).color.setHex(col);
+    this.particles.emit(tmp3.copy(from).addScaledVector(d, 0.5), tmp2.set(d.x * 0.6, 0.8, d.z * 0.6), new THREE.Color(0x8a8a90), heavy ? 0.5 : 0.28, 0.5, 0.5, 1.5);
+    if (!heavy) { const side = tmp2.set(d.z, 0, -d.x).multiplyScalar(2 + Math.random()); side.y = 2.5 + Math.random(); this.particles.emit(tmp3.copy(from), side, new THREE.Color(0xd8a840), 0.06, 0.6, -18, 0.5); }
+    const shooter = src === 'vixen' ? this.vixen : src === 'kailee' ? this.kailee : (src === 'brianna' || src === 'payton') ? this.allies.find((a) => a.key === src)?.a : null;
+    if (shooter) { const r = this.recoils.find((x) => x.o === shooter.cm.pivot); const k = heavy ? 0.22 : gat ? 0.05 : 0.12; if (r) r.z = Math.max(r.z, k); else this.recoils.push({ o: shooter.cm.pivot, z: k }); }
+    if (src === 'vixen') this.shake(0.08);
+    if (heavy) this.shake(0.12);
+    if (Math.hypot(from.x - this.vixen.pos.x, from.z - this.vixen.pos.z) < 40) {
+      sfx.gun(heavy ? 'gauntlet' : gat ? 'gatling' : turret ? 'turret' : enemy ? 'enemy' : 'pistol');
+      if ((this.casingCd -= 1) <= 0 && !heavy) { sfx.casing(); this.casingCd = gat ? 4 : 1; }
+    }
+  }
+  private tickGunFx(dt: number) {
+    for (const f of this.flashPool) if (f.t > 0) { f.t -= dt; f.m.scale.multiplyScalar(0.8); if (f.t <= 0) f.m.visible = false; }
+    for (const t of this.tracerPool) if (t.t > 0) { t.t -= dt; (t.m.material as THREE.MeshBasicMaterial).opacity = Math.max(0, t.t / 0.08); if (t.t <= 0) t.m.visible = false; }
+    this.recoils = this.recoils.filter((r) => { r.z *= Math.exp(-dt * 18); r.o.position.z = -r.z; if (r.z < 0.003) { r.o.position.z = 0; return false; } return true; });
+    for (const t of this.turrets) if (t.alive) { t.g.position.x += (t.x - t.g.position.x) * Math.min(1, dt * 10); t.g.position.z += (t.z - t.g.position.z) * Math.min(1, dt * 10); }
+  }
+  // ------------------------------------------------------------------ BANG (mines, edge-gun deaths, dive crush): layered SFX + flash + debris + shockwave + shake
+  bang(at: THREE.Vector3, size = 1, shake = true) {
+    sfx.bang(size);
+    const p = new THREE.Vector3().copy(at);
+    this.particles.burst(p, Math.round(28 * size), COL.yel, 10 * size, 0.24, 0.55);
+    this.particles.burst(p, Math.round(18 * size), COL.org, 7 * size, 0.3, 0.9);
+    this.particles.burst(p, Math.round(14 * size), new THREE.Color(0x3a3430), 8 * size, 0.18, 1.2, -16, 1);
+    for (let i = 0; i < 6; i++) this.particles.emit(tmp2.copy(p).add(new THREE.Vector3((Math.random() - 0.5) * 1.5, 0.3, (Math.random() - 0.5) * 1.5)), new THREE.Vector3((Math.random() - 0.5) * 1.2, 1.6, (Math.random() - 0.5) * 1.2), new THREE.Color(0x55524e), 0.9 * size, 1.3, 1, 1.2);
+    this.trans.ring(p, 0xffc860, 0.4, 5.5 * size, 0.45, 0.9);
+    this.trans.ring(p, 0xffffff, 0.2, 3 * size, 0.22, 0.7, 0.12);
+    { const f = this.flashPool.find((x) => x.t <= 0); if (f) { f.t = 0.12; f.m.visible = true; f.m.position.copy(p).setY(p.y + 0.4); f.m.scale.setScalar(6 * size); (f.m.material as THREE.MeshBasicMaterial).color.setHex(0xffd080); } }
+    const d = Math.hypot(at.x - this.vixen.pos.x, at.z - this.vixen.pos.z);
+    if (shake && d < 26) { this.shake(Math.min(0.9, 0.75 * size * (1 - d / 30))); this.hitstop = Math.max(this.hitstop, d < 8 ? 0.05 : 0); }
+  }
+  /** music state: 0 calm · 1 combat · 2 imminent threat (Slither, Falcon boss, low HP, RAGE, dense fight) */
+  private musicThreat(): 0 | 1 | 2 {
+    if (this.apex === 'fight' || this.apex === 'escape' || this.apex === 'movie') return 2;
+    let alive = 0, near = 0, boss = false;
+    for (const e of this.enemies) { if (e.state === 'dead') continue; alive++; if (e.def.kind === 'falcon') boss = true; if (Math.hypot(e.pos.x - this.vixen.pos.x, e.pos.z - this.vixen.pos.z) < 28) near++; }
+    if (boss || this.rageT > 0 || near >= 6 || (alive > 0 && this.vixen.hp < this.vixen.maxHp * 0.35)) return 2;
+    if (near > 0 || this.waveActive) return 1;
+    return 0;
+  }
   // ------------------------------------------------------------------ DIVE CRUSH (Misty 1104 pm): attack while airborne off a sky rail / tower → slam onto enemies below
   diving = false; private diveH = 0;
   private startDive() {
@@ -2071,7 +2132,7 @@ export class Game {
       this.hurt(e, Math.round((d < 1.6 ? 70 : 40) * (1 + this.diveH * 0.08)), dir, 16, { source: 'vixen', stagger: 1.4, up: 7, heavy: true, color: 0xffd040 });
     }
     for (const t of this.turrets) if (t.alive && Math.hypot(t.x - v.pos.x, t.z - v.pos.z) < R) t.hp -= 40;
-    sfx.impact(); sfx.punch(true); sfx.clang();
+    sfx.punch(true); sfx.clang(); this.bang(tmp3.copy(v.pos).setY(0.4), 0.9);
     this.shake(0.9); this.hitstop = n ? 0.11 : 0.05; this.fovKick = -4;
     this.particles.burst(tmp3.copy(v.pos).setY(0.15), 34, new THREE.Color(0xffd040), 9, 0.25, 0.7, -14, 0.6);
     this.particles.burst(tmp3.copy(v.pos).setY(0.3), 18, new THREE.Color(0x8a7a6a), 6, 0.3, 0.9, -18, 0.4);
