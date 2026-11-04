@@ -97,7 +97,7 @@ function playDockToHyperdrive(): Promise<void> {
     const imgs: Record<string, HTMLImageElement> = {};
     for (const b of CUTSCENE) if (!imgs[b.img]) { const im = new Image(); im.src = `cutscene/${b.img}.jpg`; wrap.appendChild(im); imgs[b.img] = im; }
     const card = document.createElement('div'); card.className = 'card';
-    const cap = document.createElement('div'); cap.className = 'cap'; cap.style.opacity = '0';
+    const cap = document.createElement('div'); cap.className = 'cap'; cap.style.opacity = '0'; cap.style.display = 'none';
     const skip = document.createElement('div'); skip.className = 'skip'; skip.textContent = 'CLICK / ANY KEY TO SKIP';
     wrap.append(card, cap, skip); document.body.appendChild(wrap);
     let done = false;
@@ -222,7 +222,7 @@ frame();
   hint.style.cssText = 'position:absolute;right:24px;top:20px;color:#fffc;font:700 20px sans-serif;letter-spacing:1px;background:#0008;padding:8px 14px;border-radius:6px';
   const cap = document.createElement('div');
   cap.style.cssText = 'position:absolute;left:50%;bottom:7%;transform:translateX(-50%);max-width:86vw;text-align:center;color:#fff;font:700 clamp(22px,3.2vw,40px) sans-serif;text-shadow:0 2px 6px #000,0 0 2px #000;background:#0009;padding:10px 22px;border-radius:8px;opacity:0;transition:opacity .2s';
-  wrap.appendChild(cap);
+  cap.style.display = 'none'; // overlay captions removed — only baked-in plate captions
   let lines: { speaker: string; line: string; t0: number; t1: number }[] = [];
   fetch('intro/gm_cold_open_dialogue.json').then((r) => r.json()).then((d: any[]) => { let t = 0; lines = d.map((x) => { const o = { speaker: x.speaker, line: x.line, t0: x.startSec ?? t, t1: 0 }; o.t1 = o.t0 + x.durationSec; t = o.t1; return o; }); }).catch(() => {});
   v.addEventListener('timeupdate', () => {
