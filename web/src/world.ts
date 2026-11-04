@@ -8,8 +8,8 @@ export let X_MIN = -18;      // west container wall face (Dock)
 export let X_EDGE = 18;    // quay edge (water beyond)
 export const X_MIN_DOCK = -18;
 export const X_EDGE_DOCK = 18;
-export const X_MIN_HD = -12;   // Soft greybox stand-in width (pre–Pink Viper redo)
-export const X_EDGE_HD = 12;
+export const X_MIN_HD = -17;   // Apex pass 1104: outside widened (side decks) — perimeter walls sit at Dock width
+export const X_EDGE_HD = 17;
 export const Z_START = -6;
 export const ZONES = [
   { z0: -8, z1: 40, barrier: 42, name: 'BERTH 1' },
@@ -177,7 +177,7 @@ export class World {
     const railMat = new THREE.MeshStandardMaterial({ color: 0xffb070, emissive: 0xff7a1a, emissiveIntensity: 1.2, metalness: 0.9, roughness: 0.25 });
     // perimeter: base walls (west + east, no quay water in Hyperdrive) + end caps
     for (let z = -10; z < 182; z += 8) { piece(conc, X_MIN - 1, z + 4, 2, 8, 7, 0, amber); piece(conc, X_EDGE + 0.9, z + 4, 1.6, 8, 7, 0, amber); }
-    piece(conc, 0, -11, 32, 2.6, 7); piece(conc, 0, Z_END + 1.5, 32, 2.6, 7);
+    piece(conc, 0, -11, 40, 2.6, 7); piece(conc, 0, Z_END + 1.5, 40, 2.6, 7);
     // APPROACH (-8..40): sandbag nests + crates, zig-zag line
     const bags: [number, number, number][] = [[-7, 8, 0], [7, 16, 0], [-4, 24, 0.3], [8, 30, -0.3], [-9, 35, 0]];
     for (const [x, z, r] of bags) piece(sand, x, z, 5, 1.2, 0.9, r, undefined, 'DECK_SandbagLip', 'top');
@@ -205,6 +205,27 @@ export class World {
     for (let i = 0; i < 12; i++) { if (i % 3 === 0) continue; const a = (i / 12) * Math.PI * 2; piece(steel, Math.sin(a) * 7, cc + Math.cos(a) * 7, 3.4, 0.8, 1.0, a, amber, 'DECK_FunBox', 'top'); }
     for (const [x, z] of [[-9, 140], [9, 140], [-10, 170], [10, 170]]) piece(conc, x, z, 4, 1.2, 3, 0, pink, 'RH_OuterWall');
     rail(-4, 138, 146, 0.8); rail(4, 166, 174, 0.8); wedge(0, 143, 3, 3.5, 1.0);
+    // APEX OUTSIDE (Misty 1104 v004): side decks + ramps + cover + rails in the widened |x| 12..17 band — lateral/vertical lines, not a funnel
+    const silver = new THREE.MeshStandardMaterial({ color: 0xb8c4d8, roughness: 0.35, metalness: 0.85 });
+    const cyan = new THREE.MeshStandardMaterial({ color: 0x081820, emissive: 0x2ae8ff, emissiveIntensity: 2.2 });
+    const purp = new THREE.MeshStandardMaterial({ color: 0x140822, emissive: 0x9a3aff, emissiveIntensity: 2.0 });
+    for (const sx of [-1, 1]) {
+      const x = sx * 14.8;
+      // raised side decks (rideable tops) with ramps up/down each end
+      for (const [z0, z1, h] of [[6, 30, 1.6], [48, 80, 2.0], [96, 126, 1.6], [140, 168, 2.2]] as const) {
+        piece(silver, x, (z0 + z1) / 2, 3.6, z1 - z0, h, 0, sx < 0 ? cyan : purp, undefined, 'top');
+        wedge(x, z0 - 2, 3.6, 4, h); wedge(x, z1 + 2, 3.6, 4, h, -1);
+        rail(x - sx * 1.9, z0 + 1, z1 - 1, h + 0.8);
+      }
+      // cover crates / short walls on the floor between decks and lane
+      for (const z of [38, 88, 134]) { piece(olive, sx * 13.5, z, 2.4, 2.4, 1.3, 0.3 * sx, cyan); piece(conc, sx * 11, z + 3, 0.6, 4, 1.6, 0, purp); }
+      // vertical: tall perch platforms with kickers up
+      for (const z of [20, 64, 112, 156]) { piece(steel, sx * 15.5, z, 2.6, 4, 3.2, 0, cyan, undefined, 'top'); }
+    }
+    // doorway (elevator) frame at the far end — the Apex objective
+    piece(silver, -3.4, 177.2, 1.2, 1.2, 6, 0, cyan); piece(silver, 3.4, 177.2, 1.2, 1.2, 6, 0, cyan);
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(8, 1, 1.2), purp); lintel.position.set(0, 6.4, 177.2); g.add(lintel);
+    const door = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 5.8), new THREE.MeshBasicMaterial({ color: 0x2ae8ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide })); door.position.set(0, 2.9, 177.6); g.add(door);
   }
   private railChev!: THREE.Texture;
   private groundChev!: THREE.Texture;

@@ -628,6 +628,7 @@ export class Game {
     this.updateFrenzy(dt);
     this.updatePickups(dt);
     this.updateWaves(dt);
+    if (this.level === 2) this.updateTurrets(dt);
     // visuals
     this.vixen.syncVisual(dt, this.p.turn);
     this.kailee.syncVisual(wdt, 0);
@@ -1754,14 +1755,18 @@ export class Game {
         } else {
           this.gateOpen = true; this.world.setGateActive(true); sfx.gateOpen();
           this.banner('GATE OPEN', 'EXTRACT — REACH THE MAGENTA GATE', 2); this.coms('COM_LIL_04');
-          this.setObjective('EXTRACT: skate into the magenta gate');
+          this.setObjective(this.level === 2 ? 'DOORWAY: reach the elevator at the far end' : 'EXTRACT: skate into the magenta gate');
         }
       }
       return;
     }
     // cleared: wait for player to move to next zone
     if (this.waveCleared && this.wave < 3 && this.vixen.pos.z > ZONES[this.wave + 1].z0 + 1) { this.wave++; this.waveCleared = false; }
-    if (this.gateOpen && this.vixen.pos.z > GATE_Z - 2.5 && Math.abs(this.vixen.pos.x) < 4) this.win();
+    if (this.gateOpen && this.vixen.pos.z > GATE_Z - 2.5 && Math.abs(this.vixen.pos.x) < 4) {
+      if (this.level === 2) { if (this.doorT < 0) { this.doorT = 2.6; this.banner('ELEVATOR AHEAD', 'COMING ONLINE', 2.6); this.setObjective('ELEVATOR AHEAD — COMING ONLINE'); } }
+      else this.win();
+    }
+    if (this.doorT > 0) { this.doorT -= dt; if (this.doorT <= 0) this.win(); }
   }
 
   win() {
@@ -1770,6 +1775,63 @@ export class Game {
     // Dock cleared -> Dock→Hyperdrive cutscene -> Level 2 (main.ts plays the cutscene, then calls startLevel2)
     this.hushVoice(); this.rageT = 0;
     this.setState(this.level === 1 ? 'cutscene' : 'win');
+  }
+  // ------------------------------------------------------------------ APEX EDGE GUNS (Misty 1104): soft-DPS pressure only, destroyable, never a gate
+  private doorT = -1;
+  private turrets: { g: THREE.Group; x: number; z: number; y: number; hp: number; cd: number; tele: number; burst: number; line: THREE.Line; alive: boolean }[] = [];
+  private tShots: { m: THREE.Mesh; v: THREE.Vector3; t: number }[] = [];
+  private spawnTurrets() {
+    for (const t of this.turrets) this.scene.remove(t.g, t.line); for (const s of this.tShots) this.scene.remove(s.m);
+    this.turrets = []; this.tShots = [];
+    const spots: [number, number, number][] = [[-15.5, 112, 3.2], [15.5, 112, 3.2], [-15.5, 156, 3.2], [15.5, 156, 3.2], [0, 177.2, 6.9]];
+    for (const [x, z, y] of spots) {
+      const g = new THREE.Group();
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.75, 0.6, 10), new THREE.MeshStandardMaterial({ color: 0xc0c8d8, metalness: 0.9, roughness: 0.3 }));
+      const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 1.3), new THREE.MeshStandardMaterial({ color: 0x101018, emissive: 0x2ae8ff, emissiveIntensity: 1.5 }));
+      barrel.position.set(0, 0.45, 0.6); base.position.y = 0.3; g.add(base, barrel); g.position.set(x, y, z); this.scene.add(g);
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xff2050, transparent: true, opacity: 0 }));
+      this.scene.add(line);
+      this.turrets.push({ g, x, z, y, hp: 60, cd: 2 + Math.random() * 2, tele: 0, burst: 0, line, alive: true });
+    }
+  }
+  private updateTurrets(dt: number) {
+    const v = this.vixen;
+    for (const t of this.turrets) {
+      if (!t.alive) continue;
+      const dx = v.pos.x - t.x, dz = v.pos.z - t.z, d = Math.hypot(dx, dz);
+      // destroyable: Vixen melee in reach (deck top) or any attack within 3m chips it
+      if (this.p.atkT > 0 && d < 3.2) { t.hp -= dt * 70; if (t.hp <= 0) { t.alive = false; this.scene.remove(t.g, t.line); this.shake(0.3); this.banner('EDGE GUN DOWN', '', 0.8); this.particles.emit(tmp3.set(t.x, t.y + 0.5, t.z), tmp.set(0, 3, 0), new THREE.Color(0x2ae8ff), 0.4, 0.6); continue; } }
+      const inRange = d < 26 && d > 2 && v.pos.z < t.z + 4;
+      t.g.rotation.y = Math.atan2(dx, dz);
+      const lm = t.line.material as THREE.LineBasicMaterial;
+      if (t.tele > 0) {
+        t.tele -= dt; lm.opacity = 0.35 + 0.5 * Math.abs(Math.sin(this.time * 30));
+        const pa = t.line.geometry.attributes.position as THREE.BufferAttribute; pa.setXYZ(0, t.x, t.y + 0.75, t.z); pa.setXYZ(1, v.pos.x, 1, v.pos.z); pa.needsUpdate = true;
+        if (t.tele <= 0) { t.burst = 3; t.cd = 0; lm.opacity = 0; }
+      } else if (t.burst > 0) {
+        t.cd -= dt;
+        if (t.cd <= 0) { // bang
+          t.burst--; t.cd = 0.18;
+          const m = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff3a8a }));
+          m.position.set(t.x, t.y + 0.75, t.z);
+          const dir = new THREE.Vector3(v.pos.x - t.x + (Math.random() - 0.5) * 1.6, 1 - (t.y + 0.75), v.pos.z - t.z + (Math.random() - 0.5) * 1.6).normalize().multiplyScalar(22);
+          this.scene.add(m); this.tShots.push({ m, v: dir, t: 1.6 });
+        }
+        if (t.burst === 0) t.cd = 3.2 + Math.random() * 1.5;
+      } else if (inRange) { t.cd -= dt; if (t.cd <= 0) t.tele = 0.9; }
+    }
+    this.tShots = this.tShots.filter((s) => {
+      s.t -= dt; s.m.position.addScaledVector(s.v, dt);
+      for (const h of this.heroes()) {
+        if (Math.hypot(h.pos.x - s.m.position.x, h.pos.z - s.m.position.z) < 0.7 && Math.abs(s.m.position.y - 1) < 1.2) {
+          // soft DPS: 4 per bolt to Vixen, 3 to allies; tiny knock, no stagger
+          this.hurt(h, h === v ? 4 : 3, tmp.copy(s.v).setY(0).normalize(), 1.5, { source: 'hazard', color: 0xff3a8a });
+          s.t = 0; break;
+        }
+      }
+      if (s.t <= 0 || s.m.position.y < 0) { this.scene.remove(s.m); return false; }
+      return true;
+    });
   }
   /** LEVEL 2: HyperDrive — Pink Viper spacey-tech den (Soft greybox until rebuild; army look REJECTED). */
   startLevel2() {
@@ -1787,7 +1849,8 @@ export class Game {
     this.comsLine('KAMYRN', "You're in Hyperdrive. Whole base is crawling with Vipers.");
     this.comsLine('LILI', "Skate fast. Don't stop. Watch the mines.");
     this.banner('LEVEL 2 — HYPERDRIVE', 'PINK VIPER DEN · SWARM / COBRA / FANG / HIVE', 2.4);
-    this.setObjective('Skate the approach lane — clear the Scar Swarm');
+    this.setObjective('Skate the approach lane — clear the Scar Swarm (decks + rails on both sides)');
+    this.doorT = -1; this.spawnTurrets();
     this.hud['boss'].classList.add('hidden');
   }
   // ------------------------------------------------------------------ Mom's Frenzy + RAGE (protect-mode, Misty 11-03: "even if it kills her")
