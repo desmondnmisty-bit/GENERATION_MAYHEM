@@ -209,48 +209,42 @@ function frame() {
 boot().catch((e) => { console.error(e); $('load-status').textContent = 'Failed to load: ' + e; });
 frame();
 
-// ---- cold-open movie: plays once on load over the title screen; click / any key skips ----
+// ---- cold-open: neon magenta story cards on black, THEN the movie (no overlay captions) ----
 (() => {
   const wrap = document.createElement('div');
   wrap.id = 'cold-open';
   wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;cursor:pointer';
   const v = document.createElement('video');
-  v.src = 'intro/GM_ColdOpen_Full_v003_nocrawl.mp4'; v.muted = false; v.autoplay = true; v.playsInline = true;
-  v.style.cssText = 'width:100%;height:100%;object-fit:contain';
+  v.src = 'intro/GM_ColdOpen_Full_v003_nocrawl.mp4'; v.muted = false; v.playsInline = true; v.preload = 'auto';
+  v.style.cssText = 'width:100%;height:100%;object-fit:contain;display:none';
   const hint = document.createElement('div');
-  hint.textContent = 'TAP FOR SOUND · CLICK OR ANY KEY TO SKIP';
-  hint.style.cssText = 'position:absolute;right:24px;top:20px;color:#fffc;font:700 20px sans-serif;letter-spacing:1px;background:#0008;padding:8px 14px;border-radius:6px';
-  const cap = document.createElement('div');
-  cap.style.cssText = 'position:absolute;left:50%;bottom:7%;transform:translateX(-50%);max-width:86vw;text-align:center;color:#fff;font:700 clamp(22px,3.2vw,40px) sans-serif;text-shadow:0 2px 6px #000,0 0 2px #000;background:#0009;padding:10px 22px;border-radius:8px;opacity:0;transition:opacity .2s';
-  cap.style.display = 'none'; // overlay captions removed — only baked-in plate captions
-  let lines: { speaker: string; line: string; t0: number; t1: number }[] = [];
-  if (0) fetch('intro/gm_cold_open_dialogue.json').then((r) => r.json()).then((d: any[]) => { let t = 0; lines = d.map((x) => { const o = { speaker: x.speaker, line: x.line, t0: x.startSec ?? t, t1: 0 }; o.t1 = o.t0 + x.durationSec; t = o.t1; return o; }); }).catch(() => {});
-  v.addEventListener('timeupdate', () => {
-    const k = lines.find((l) => v.currentTime >= l.t0 && v.currentTime < l.t1);
-    if (k) { cap.innerHTML = (k.speaker && k.speaker !== 'VO' ? `<span style="color:#ff5fd8">${k.speaker}:</span> ` : '') + k.line; cap.style.opacity = '1'; } else cap.style.opacity = '0';
-  });
-  // low love / R&B bed under the cold open (~0.22), fades out on end/skip
-  const bed = new Audio('intro/gm_cold_open_love_bed.mp3'); bed.loop = true; bed.volume = 0; // Full_v003 has its own baked mix
-  const startBed = () => { bed.play().catch(() => {}); };
-  v.addEventListener('play', startBed);
-  const stopBed = () => { const iv = setInterval(() => { bed.volume = Math.max(0, bed.volume - 0.03); if (bed.volume <= 0) { bed.pause(); clearInterval(iv); } }, 50); };
-  wrap.append(v, hint); document.body.appendChild(wrap);
-  let armed = false;
-  const done = () => { window.removeEventListener('keydown', onKey); v.pause(); stopBed(); wrap.remove(); };
-  const armSound = () => {
-    if (armed) return; armed = true;
+  hint.textContent = 'CLICK OR ANY KEY TO CONTINUE';
+  hint.style.cssText = 'position:absolute;right:24px;top:20px;color:#fff8;font:700 16px sans-serif;letter-spacing:1px;padding:8px 14px';
+  const card = document.createElement('div');
+  card.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 8vw;color:#ff2bd6;font:800 clamp(28px,5vw,72px) "Arial Black",Impact,sans-serif;letter-spacing:2px;line-height:1.2;text-shadow:0 0 6px #ff2bd6,0 0 18px #ff2bd6,0 0 42px #c0008f;opacity:0;transition:opacity .7s;pointer-events:none';
+  const story = ['They took her man.', 'She paid the bills.', 'Three daughters.<br>Three blood contracts.', "Mom wasn't in the room.", 'Then the call.', 'Mama Bear is back.', 'Can you Survive the Circuit?'];
+  wrap.append(v, card, hint); document.body.appendChild(wrap);
+  let phase: 'cards' | 'movie' | 'done' = 'cards';
+  let timer: any = 0; let i = 0;
+  const done = () => { if (phase === 'done') return; phase = 'done'; clearTimeout(timer); window.removeEventListener('keydown', onKey); v.pause(); wrap.remove(); };
+  const startMovie = () => {
+    if (phase !== 'cards') return; phase = 'movie'; clearTimeout(timer);
+    card.remove(); v.style.display = ''; hint.textContent = 'CLICK OR ANY KEY TO SKIP';
     v.muted = false; v.volume = 1;
-    v.play().catch(() => {}); startBed();
+    v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
   };
-  const onKey = (_e: KeyboardEvent) => { armSound(); done(); };
+  const show = () => {
+    if (phase !== 'cards') return;
+    if (i >= story.length) { card.style.opacity = '0'; timer = setTimeout(startMovie, 800); return; }
+    card.innerHTML = story[i++]; card.style.opacity = '1';
+    timer = setTimeout(() => { card.style.opacity = '0'; timer = setTimeout(show, 800); }, 2800);
+  };
+  const advance = () => { if (phase === 'cards') startMovie(); else done(); };
+  const onKey = (_e: KeyboardEvent) => advance();
   v.addEventListener('ended', done); v.addEventListener('error', done);
-  wrap.addEventListener('click', (e: MouseEvent) => {
-    if (!armed) { e.stopPropagation(); armSound(); hint.textContent = 'CLICK OR ANY KEY TO SKIP'; return; }
-    done();
-  });
+  wrap.addEventListener('click', advance);
   window.addEventListener('keydown', onKey);
-  // try unmuted first; browsers that block it fall back muted until first tap
-  v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+  timer = setTimeout(show, 500);
 })();
 
 // Global first-gesture audio unlock (phones keep AudioContext suspended until a tap)
