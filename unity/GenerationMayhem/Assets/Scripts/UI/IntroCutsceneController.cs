@@ -17,20 +17,15 @@ namespace GenerationMayhem.UI
 
         public Beat[] beats =
         {
-            // Soft GO timeline lock (Misty 1104) — pink pre-Desmond cards, lockstep web main.ts. No Mom prison after 1996; no 2023.
-            new Beat{ slot="pregnant_hubby", title="01 // 1995",  caption="1995. Vixen and Des.\nYoung. In love.", seconds=3.4f, fx=Fx.Warm },
-            new Beat{ slot="life_flash",     title="02 // 1996",  caption="1996. Both locked.\nOut by end of 96. She never went back.", seconds=3.4f, fx=Fx.Pressure },
-            new Beat{ slot="birth_payton",   title="03 // BORN",  caption="Payton 1998. Brianna 2003.\nKailee 2008.", seconds=3.4f, fx=Fx.Warm },
-            new Beat{ slot="moving_on",      title="04 // ALONE", caption="Des jail 2004. Again 2010.\nLeft with another woman. She raised them alone.", seconds=3.4f, fx=Fx.Pressure },
-            // Soft Soft Soft Soft GO Desmond cold-open plates (Misty 1104) — after kids, before IRS. Stripper cut KEEP. Ban whooped/damn-man lines.
-            new Beat{ slot="desmond_would_not_work", title="05 // HE WOULD NOT WORK", caption="He sat on his hands. She paid every bill. She did everything. Cruel when he showed.", seconds=3.5f, fx=Fx.Pressure },
-            new Beat{ slot="desmond_lazy_cheat",     title="06 // SHE CARRIED IT",    caption="Lazy. Cheating the whole time. She provided. She held it all.", seconds=3.5f, fx=Fx.Pressure },
-            new Beat{ slot="irs_contracts",  title="07 // BLOOD CONTRACTS",  caption="They contracted my kids.",                   seconds=3.5f, fx=Fx.Pressure },
-            new Beat{ slot="phone_call",     title="08 // THE CALL",         caption="One call.",                                  seconds=3f,   fx=Fx.None },
-            new Beat{ slot="kitchen_rage",   title="09 // KITCHEN RAGE",     caption="RAGE.",                                      seconds=2.8f, fx=Fx.Shake },
-            new Beat{ slot="garage_cabinet", title="10 // GARAGE",           caption="The cabinet. Years closed.",                 seconds=3.2f, fx=Fx.Dust },
-            new Beat{ slot="war_rig_dusty",  title="11 // WAR RIG",          caption="Still here. Still mine.",                    seconds=3.5f, fx=Fx.Dust },
-            new Beat{ slot="strapping_in",   title="12 // STRAP IN",         caption="Mama Bear's back.",                          seconds=3.2f, fx=Fx.BlurBlack },
+            // Misty 1105: no pink neon story text cards. Desmond Soft GO plates + movie stills only.
+            new Beat{ slot="desmond_would_not_work", title="01 // HE WOULD NOT WORK", caption="He sat on his hands. She paid every bill. She did everything. Cruel when he showed.", seconds=3.5f, fx=Fx.Pressure },
+            new Beat{ slot="desmond_lazy_cheat",     title="02 // SHE CARRIED IT",    caption="Lazy. Cheating the whole time. She provided. She held it all.", seconds=3.5f, fx=Fx.Pressure },
+            new Beat{ slot="irs_contracts",  title="03 // BLOOD CONTRACTS",  caption="They contracted my kids.",                   seconds=3.5f, fx=Fx.Pressure },
+            new Beat{ slot="phone_call",     title="04 // THE CALL",         caption="One call.",                                  seconds=3f,   fx=Fx.None },
+            new Beat{ slot="kitchen_rage",   title="05 // KITCHEN RAGE",     caption="RAGE.",                                      seconds=2.8f, fx=Fx.Shake },
+            new Beat{ slot="garage_cabinet", title="06 // GARAGE",           caption="The cabinet. Years closed.",                 seconds=3.2f, fx=Fx.Dust },
+            new Beat{ slot="war_rig_dusty",  title="07 // WAR RIG",          caption="Still here. Still mine.",                    seconds=3.5f, fx=Fx.Dust },
+            new Beat{ slot="strapping_in",   title="08 // STRAP IN",         caption="Mama Bear's back.",                          seconds=3.2f, fx=Fx.BlurBlack },
         };
         public Sprite[] art;                       // optional, index-matched to beats
         public string nextScene = GMFlow.StartScene;

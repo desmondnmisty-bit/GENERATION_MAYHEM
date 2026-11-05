@@ -209,7 +209,7 @@ function frame() {
 boot().catch((e) => { console.error(e); $('load-status').textContent = 'Failed to load: ' + e; });
 frame();
 
-// ---- cold-open: neon magenta story cards (+ Soft Soft Soft Soft GO Desmond plates) on black, THEN the movie ----
+// ---- cold-open: Desmond Soft GO plates ONLY (no pink neon story text cards), THEN the movie ----
 (() => {
   const wrap = document.createElement('div');
   wrap.id = 'cold-open';
@@ -220,34 +220,24 @@ frame();
   const hint = document.createElement('div');
   hint.textContent = 'CLICK OR ANY KEY TO CONTINUE';
   hint.style.cssText = 'position:absolute;right:24px;top:20px;color:#fff8;font:700 16px sans-serif;letter-spacing:1px;padding:8px 14px;z-index:3';
-  type Beat = { kind: 'text'; html: string; ms?: number } | { kind: 'image'; src: string; title: string; line: string; ms?: number };
+  // Misty 1105: REMOVE ALL pink neon story text cards. Keep Desmond Soft GO plates + movie only.
+  type Beat = { src: string; title: string; line: string; ms?: number };
   const story: Beat[] = [
-    { kind: 'text', html: '1995. Vixen and Des.<br>Young. In love.' },
-    { kind: 'text', html: '1996. Both locked.<br>Out by end of 96. She never went back.' },
-    { kind: 'text', html: 'Payton 1998. Brianna 2003.<br>Kailee 2008.' },
-    { kind: 'text', html: 'Des jail 2004. Again 2010.<br>Left with another woman. She raised them alone.' },
-    // Soft Soft Soft Soft GO Desmond plates — after kids, before Iron Rose contracts. Stripper cut KEEP elsewhere.
     {
-      kind: 'image',
       src: 'intro/coldopen/GM_ColdOpen_Desmond_Abuse_Provider_v001.jpg',
       title: 'HE WOULD NOT WORK',
       line: 'He sat on his hands. She paid every bill. She did everything. Cruel when he showed.',
       ms: 4000,
     },
     {
-      kind: 'image',
       src: 'intro/coldopen/GM_ColdOpen_Desmond_LazyCheat_Provider_v001.jpg',
       title: 'SHE CARRIED IT',
       line: 'Lazy. Cheating the whole time. She provided. She held it all.',
       ms: 4000,
     },
-    { kind: 'text', html: 'Iron Rose forced blood contracts.<br>Death Derby. Babies signed.' },
-    { kind: 'text', html: "Mom wasn't in that room." },
-    { kind: 'text', html: 'The call hit. Retirement ends.<br>Mama Bear. Fixer. Finisher.' },
-    { kind: 'text', html: 'Can you Survive the Circuit?' },
   ];
   const card = document.createElement('div');
-  card.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 6vw;color:#ff2bd6;font:800 clamp(28px,5vw,72px) "Arial Black",Impact,sans-serif;letter-spacing:2px;line-height:1.2;text-shadow:0 0 6px #ff2bd6,0 0 18px #ff2bd6,0 0 42px #c0008f;opacity:0;transition:opacity .7s;pointer-events:none;z-index:2;gap:1.2vh';
+  card.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 6vw;color:#fff;opacity:0;transition:opacity .7s;pointer-events:none;z-index:2;gap:1.2vh';
   wrap.append(v, card, hint); document.body.appendChild(wrap);
   let phase: 'cards' | 'movie' | 'done' = 'cards';
   let timer: any = 0; let i = 0;
@@ -259,14 +249,10 @@ frame();
     v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
   };
   const paint = (b: Beat) => {
-    if (b.kind === 'text') {
-      card.innerHTML = b.html;
-      return;
-    }
     card.innerHTML =
-      '<img alt="" src="' + b.src + '" style="max-width:min(92vw,1100px);max-height:62vh;object-fit:contain;border:2px solid #ff2bd655;box-shadow:0 0 28px #ff2bd644;margin:0 auto 1.4vh;display:block"/>' +
-      '<div style="font:800 clamp(26px,4.6vw,64px) \'Arial Black\',Impact,sans-serif;letter-spacing:3px;color:#ff2bd6;text-shadow:0 0 6px #ff2bd6,0 0 22px #ff2bd6,0 0 48px #c0008f">' + b.title + '</div>' +
-      '<div style="margin-top:0.6vh;max-width:38em;font:700 clamp(14px,2.1vw,28px) sans-serif;letter-spacing:1px;line-height:1.35;color:#ff9ae8;text-shadow:0 0 8px #c0008f">' + b.line + '</div>';
+      '<img alt="" src="' + b.src + '" style="max-width:min(92vw,1100px);max-height:68vh;object-fit:contain;margin:0 auto 1.2vh;display:block"/>' +
+      '<div style="font:800 clamp(22px,3.8vw,48px) \'Arial Black\',Impact,sans-serif;letter-spacing:2px;color:#fff">' + b.title + '</div>' +
+      '<div style="margin-top:0.5vh;max-width:38em;font:600 clamp(13px,1.8vw,22px) sans-serif;letter-spacing:0.5px;line-height:1.35;color:#ddd">' + b.line + '</div>';
   };
   const show = () => {
     if (phase !== 'cards') return;
@@ -284,6 +270,7 @@ frame();
   window.addEventListener('keydown', onKey);
   timer = setTimeout(show, 500);
 })();
+
 
 // Global first-gesture audio unlock (phones keep AudioContext suspended until a tap)
 const __unlock = () => { sfx.unlock(); (window as any).__gmAudio = () => sfx.ctx?.state; };
