@@ -15,17 +15,10 @@ namespace GenerationMayhem.UI
         public enum Fx { None, Warm, Pressure, Shake, Dust, BlurBlack }
         [System.Serializable] public struct Beat { public string slot, title, caption; public float seconds; public Fx fx; }
 
+        // Misty 1105: cold open = MOVIE ONLY from start. No pink cards, no Desmond still/caption cards before video.
+        // Stills beats emptied — video path is the only Soft GO cold open; if clip missing, skip straight to next scene.
         public Beat[] beats =
         {
-            // Misty 1105: no pink neon story text cards. Desmond Soft GO plates + movie stills only.
-            new Beat{ slot="desmond_would_not_work", title="01 // HE WOULD NOT WORK", caption="He sat on his hands. She paid every bill. She did everything. Cruel when he showed.", seconds=3.5f, fx=Fx.Pressure },
-            new Beat{ slot="desmond_lazy_cheat",     title="02 // SHE CARRIED IT",    caption="Lazy. Cheating the whole time. She provided. She held it all.", seconds=3.5f, fx=Fx.Pressure },
-            new Beat{ slot="irs_contracts",  title="03 // BLOOD CONTRACTS",  caption="They contracted my kids.",                   seconds=3.5f, fx=Fx.Pressure },
-            new Beat{ slot="phone_call",     title="04 // THE CALL",         caption="One call.",                                  seconds=3f,   fx=Fx.None },
-            new Beat{ slot="kitchen_rage",   title="05 // KITCHEN RAGE",     caption="RAGE.",                                      seconds=2.8f, fx=Fx.Shake },
-            new Beat{ slot="garage_cabinet", title="06 // GARAGE",           caption="The cabinet. Years closed.",                 seconds=3.2f, fx=Fx.Dust },
-            new Beat{ slot="war_rig_dusty",  title="07 // WAR RIG",          caption="Still here. Still mine.",                    seconds=3.5f, fx=Fx.Dust },
-            new Beat{ slot="strapping_in",   title="08 // STRAP IN",         caption="Mama Bear's back.",                          seconds=3.2f, fx=Fx.BlurBlack },
         };
         public Sprite[] art;                       // optional, index-matched to beats
         public string nextScene = GMFlow.StartScene;
@@ -72,8 +65,8 @@ namespace GenerationMayhem.UI
 
             _fade = GMUIKit.Panel(c, "Fade", Color.black, Vector2.zero, Vector2.one); _fade.raycastTarget = false;
             var clip = videoClip ? videoClip : Resources.Load<VideoClip>("Intro/gm_cold_open");
-            if (clip) StartCoroutine(RunVideo(clip)); // BAKE-ONLY 1030: JSON not required (kept only as optional data)
-            else { Debug.Log("[Intro] video missing -> stills fallback"); StartCoroutine(Run()); }
+            if (clip) StartCoroutine(RunVideo(clip)); // Misty 1105: movie only — no pre-roll cards
+            else { Debug.Log("[Intro] video missing -> skip to next (no still/caption pre-roll)"); StartCoroutine(SkipToNext()); }
         }
 
         IEnumerator RunVideo(VideoClip clip)
@@ -103,7 +96,7 @@ namespace GenerationMayhem.UI
             _vp.loopPointReached += _ => _videoEnded = true;
             _vp.Prepare();
             for (float t = 0; !_vp.isPrepared && t < 5f; t += Time.unscaledDeltaTime) yield return null;
-            if (!_vp.isPrepared) { Debug.LogWarning("[Intro] video failed to prepare -> stills fallback"); CleanupVideo(); _art.gameObject.SetActive(true); _title.gameObject.SetActive(true); _caption.gameObject.SetActive(true); _bolt.gameObject.SetActive(true); yield return Run(); yield break; }
+            if (!_vp.isPrepared) { Debug.LogWarning("[Intro] video failed to prepare -> skip (movie-only Soft GO, no still/caption pre-roll)"); CleanupVideo(); yield return SkipToNext(); yield break; }
             _vp.Play();
             yield return Fade(1, 0, 0.5f);
             _skip.SetActive(true);
@@ -114,6 +107,14 @@ namespace GenerationMayhem.UI
             _skip.SetActive(false); _done = true;
             yield return Fade(0, 1, 0.4f); // sting already baked -> no duplicate Tag card
             CleanupVideo();
+            SceneManager.LoadScene(nextScene);
+        }
+
+
+        IEnumerator SkipToNext()
+        {
+            yield return Fade(1, 0, 0.2f);
+            yield return Fade(0, 1, 0.3f);
             SceneManager.LoadScene(nextScene);
         }
 

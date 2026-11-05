@@ -209,66 +209,32 @@ function frame() {
 boot().catch((e) => { console.error(e); $('load-status').textContent = 'Failed to load: ' + e; });
 frame();
 
-// ---- cold-open: Desmond Soft GO plates ONLY (no pink neon story text cards), THEN the movie ----
+// ---- cold-open: movie ONLY from start (Misty 1105 — no pink/writing cards, no Desmond stills before movie) ----
 (() => {
   const wrap = document.createElement('div');
   wrap.id = 'cold-open';
   wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;cursor:pointer';
   const v = document.createElement('video');
-  v.src = 'intro/GM_ColdOpen_Full_v004_nocrawl.mp4'; v.muted = false; v.playsInline = true; v.preload = 'auto';
-  v.style.cssText = 'width:100%;height:100%;object-fit:contain;display:none';
+  v.src = 'intro/GM_ColdOpen_Full_v004_nocrawl.mp4';
+  v.muted = false; v.playsInline = true; v.preload = 'auto';
+  v.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block';
   const hint = document.createElement('div');
-  hint.textContent = 'CLICK OR ANY KEY TO CONTINUE';
+  hint.textContent = 'CLICK OR ANY KEY TO SKIP';
   hint.style.cssText = 'position:absolute;right:24px;top:20px;color:#fff8;font:700 16px sans-serif;letter-spacing:1px;padding:8px 14px;z-index:3';
-  // Misty 1105: REMOVE ALL pink neon story text cards. Keep Desmond Soft GO plates + movie only.
-  type Beat = { src: string; title: string; line: string; ms?: number };
-  const story: Beat[] = [
-    {
-      src: 'intro/coldopen/GM_ColdOpen_Desmond_Abuse_Provider_v001.jpg',
-      title: 'HE WOULD NOT WORK',
-      line: 'He sat on his hands. She paid every bill. She did everything. Cruel when he showed.',
-      ms: 4000,
-    },
-    {
-      src: 'intro/coldopen/GM_ColdOpen_Desmond_LazyCheat_Provider_v001.jpg',
-      title: 'SHE CARRIED IT',
-      line: 'Lazy. Cheating the whole time. She provided. She held it all.',
-      ms: 4000,
-    },
-  ];
-  const card = document.createElement('div');
-  card.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 6vw;color:#fff;opacity:0;transition:opacity .7s;pointer-events:none;z-index:2;gap:1.2vh';
-  wrap.append(v, card, hint); document.body.appendChild(wrap);
-  let phase: 'cards' | 'movie' | 'done' = 'cards';
-  let timer: any = 0; let i = 0;
-  const done = () => { if (phase === 'done') return; phase = 'done'; clearTimeout(timer); window.removeEventListener('keydown', onKey); v.pause(); wrap.remove(); };
-  const startMovie = () => {
-    if (phase !== 'cards') return; phase = 'movie'; clearTimeout(timer);
-    card.remove(); v.style.display = ''; hint.textContent = 'CLICK OR ANY KEY TO SKIP';
-    v.muted = false; v.volume = 1;
-    v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+  wrap.append(v, hint); document.body.appendChild(wrap);
+  let donePhase = false;
+  const done = () => {
+    if (donePhase) return;
+    donePhase = true;
+    window.removeEventListener('keydown', onKey);
+    v.pause();
+    wrap.remove();
   };
-  const paint = (b: Beat) => {
-    card.innerHTML =
-      '<img alt="" src="' + b.src + '" style="max-width:min(92vw,1100px);max-height:68vh;object-fit:contain;margin:0 auto 1.2vh;display:block"/>' +
-      '<div style="font:800 clamp(22px,3.8vw,48px) \'Arial Black\',Impact,sans-serif;letter-spacing:2px;color:#fff">' + b.title + '</div>' +
-      '<div style="margin-top:0.5vh;max-width:38em;font:600 clamp(13px,1.8vw,22px) sans-serif;letter-spacing:0.5px;line-height:1.35;color:#ddd">' + b.line + '</div>';
-  };
-  const show = () => {
-    if (phase !== 'cards') return;
-    if (i >= story.length) { card.style.opacity = '0'; timer = setTimeout(startMovie, 800); return; }
-    const beat = story[i++];
-    paint(beat);
-    card.style.opacity = '1';
-    const hold = beat.ms ?? 3400;
-    timer = setTimeout(() => { card.style.opacity = '0'; timer = setTimeout(show, 800); }, hold);
-  };
-  const advance = () => { if (phase === 'cards') startMovie(); else done(); };
-  const onKey = (_e: KeyboardEvent) => advance();
-  v.addEventListener('ended', done); v.addEventListener('error', done);
-  wrap.addEventListener('click', advance);
+  const onKey = (e: KeyboardEvent) => { e.preventDefault(); done(); };
+  wrap.addEventListener('click', () => done());
   window.addEventListener('keydown', onKey);
-  timer = setTimeout(show, 500);
+  v.addEventListener('ended', () => done());
+  v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
 })();
 
 
