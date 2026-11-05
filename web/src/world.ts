@@ -8,8 +8,8 @@ export let X_MIN = -18;      // west container wall face (Dock)
 export let X_EDGE = 18;    // quay edge (water beyond)
 export const X_MIN_DOCK = -18;
 export const X_EDGE_DOCK = 18;
-export const X_MIN_HD = -17;   // Apex pass 1104: outside widened (side decks) — perimeter walls sit at Dock width
-export const X_EDGE_HD = 17;
+export const X_MIN_HD = -12;   // Soft Soft Soft Soft Apex lockstep Unity Soft Soft Soft Soft HD ApexClampX ±12
+export const X_EDGE_HD = 12;
 export const Z_START = -6;
 export const ZONES = [
   { z0: -8, z1: 40, barrier: 42, name: 'BERTH 1' },
@@ -246,7 +246,8 @@ export class World {
     piece(silver, -3.4, 177.2, 1.2, 1.2, 6, 0, cyan); piece(silver, 3.4, 177.2, 1.2, 1.2, 6, 0, cyan);
     const lintel = new THREE.Mesh(new THREE.BoxGeometry(8, 1, 1.2), purp); lintel.position.set(0, 6.4, 177.2); g.add(lintel);
     // HD civ stand-ins (Misty 1104): techs at consoles / side decks — ambient only
-    for (const [x, z, ry, vest] of [[-15.6, 40, Math.PI / 2, 0x2ae8ff], [15.6, 86, -Math.PI / 2, 0xb8c4d8], [-15.6, 132, Math.PI / 2, 0xb8c4d8], [15.6, 134, -Math.PI / 2, 0x2ae8ff]] as const) this.addCiv(g, x, z, ry, vest, 0x1a1a24);
+    // Soft Soft Soft Soft Apex ambient civs (Unity Soft Soft Soft Soft HD: 3 only — no denser Soft Soft Soft Soft Apex street pack)
+    for (const [x, z, ry, vest] of [[-5, 48, Math.PI / 2, 0x2ae8ff], [4, 96, -Math.PI / 2, 0xb8c4d8], [-3, 158, Math.PI / 2, 0xb8c4d8]] as const) this.addCiv(g, x, z, ry, vest, 0x1a1a24);
     // CityLivedIn v012 (Misty stamp 1104): ONLY two lore signs, worn / less-readable — Iron Rose Arms + Slither Surplus. No other named shops.
     const wornSign = (text: string, col: string, x: number, z: number, ry: number) => {
       const tex = canvasTex(512, 192, (c) => {
@@ -261,8 +262,8 @@ export class World {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(6, 2.25), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false }));
       m.position.set(x, 4.6, z); m.rotation.y = ry; g.add(m);
     };
-    wornSign('IRON ROSE ARMS', '#ff3a4a', -16.9, 150, Math.PI / 2);
-    wornSign('SLITHER SURPLUS', '#3cff5a', 16.95, 58, -Math.PI / 2);
+    wornSign('IRON ROSE ARMS', '#ff3a4a', -11.7, 150, Math.PI / 2);
+    wornSign('SLITHER SURPLUS', '#3cff5a', 11.7, 58, -Math.PI / 2);
     // VERTICAL onto the silver decks (v009/v012): prominent lane-side stairs + landings → elevated angles on edge guns / Brianna gauntlet. Routes + doorway untouched.
     const stepMat = new THREE.MeshStandardMaterial({ color: 0xc8d0e0, roughness: 0.3, metalness: 0.85 });
     for (const sx of [-1, 1]) for (const [z0, h] of [[52, 2.0], [142, 2.2]] as const) {
@@ -271,9 +272,7 @@ export class World {
       for (let i = 0; i < 8; i++) { const st = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.08, 0.2), i % 2 ? cyan : stepMat); st.position.set(x, (i + 0.5) / 8 * h + 0.02, z0 + (i + 0.5) * 0.75); g.add(st); }
       piece(silver, x, z0 + 8, 3.2, 4, h, 0, sx < 0 ? cyan : purp, undefined, 'top');
     }
-    // DENSER CIVS (street life, ambient only): walkers pacing the deck tops + small standing clusters by the two shops
-    for (const sx of [-1, 1]) for (const [z0, z1, h] of [[6, 30, 1.6], [48, 80, 2.0], [96, 126, 1.6]] as const) this.addCiv(g, sx * 13.6, z0 + 3, 0, sx < 0 ? 0x7a6a9a : 0x9a7a5a, 0x22222a, { z0: z0 + 2, z1: z1 - 2, y: h, sp: 0.9 + Math.random() * 0.5 });
-    for (const [x, z, ry, vest, y] of [[-16.2, 147, Math.PI / 2, 0xa04040, 2.2], [-15.4, 148.4, -2.4, 0x506070, 2.2], [-16.1, 153, 1.2, 0x705a40, 2.2], [16.2, 55, -Math.PI / 2, 0x40a060, 2.0], [15.5, 56.5, 2.4, 0x605070, 2.0], [16.2, 61, -1.2, 0x8a8a8a, 2.0], [-16, 98, 1.4, 0xb8c4d8, 1.6], [16, 120, -1.7, 0x2ae8ff, 1.6]] as const) { this.addCiv(g, x, z, ry, vest, 0x1a1a24); this.civs[this.civs.length - 1].by = y; }
+    // Soft Soft Soft Soft Apex: denser Soft Soft Soft Soft Apex civ packs REMOVED — Unity Soft Soft Soft Soft HD lockstep keeps 3 ambient only (above). Soft Soft Soft Soft mesh HOLD.
     const door = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 5.8), new THREE.MeshBasicMaterial({ color: 0x2ae8ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide })); door.position.set(0, 2.9, 177.6); g.add(door);
   }
   private railChev!: THREE.Texture;
@@ -443,12 +442,12 @@ export class World {
         const t = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.08, 2.45), trim); t.position.set(cx, 3.42, z); g.add(t);
         this.pocketBoxes.push(this.addBox(cx, z, sx, 2.4, 3.4));
       }
-      for (const [ax, az] of [[-10.5, -14], [9.5, -20]]) { // break-line cover in the fight floor: tall stacks with an alley behind
+      for (const [ax, az] of [[-10.5, -14]]) { // break-line cover in the fight floor: tall stacks with an alley behind
         const m2 = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.4, 5), mat); m2.position.set(ax, 1.7, z + az); m2.castShadow = m2.receiveShadow = true; g.add(m2);
         this.pocketBoxes.push(this.addBox(ax, z + az, 2.4, 5, 3.4));
       }
       // 1104 spread: side alleys + raised decks with ramps in the widened lanes (break the single-tube read)
-      for (const [sx, sz, flip] of [[-14.5, 16, 1], [14, -6, -1]] as const) {
+      for (const [sx, sz, flip] of [[-14.5, 16, 1]] as const) {
         const deckH = 1.2, rampL = 4, deckL = 6;
         const deck = new THREE.Mesh(new THREE.BoxGeometry(3, deckH, deckL), crate); deck.position.set(sx, deckH / 2, z + sz); deck.castShadow = deck.receiveShadow = true; g.add(deck);
         const db = this.addBox(sx, z + sz, 3, deckL, deckH); db.ride = 'top'; this.pocketBoxes.push(db);
@@ -456,17 +455,18 @@ export class World {
         const ramp = new THREE.Mesh(new THREE.BoxGeometry(3, 0.15, Math.hypot(rampL, deckH)), mat); ramp.position.set(sx, deckH / 2, rz); ramp.rotation.x = flip * -Math.atan2(deckH, rampL); g.add(ramp);
         const rb = this.addBox(sx, rz, 3, rampL, deckH); rb.ride = 'ramp'; rb.rampDir = flip as 1 | -1; this.pocketBoxes.push(rb);
       }
-      for (const [dx, dz] of [[-7, 6], [6.5, 8], [0, 11]]) {
+      for (const [dx, dz] of [[0, 11]]) {
         const c = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 1.4), crate); c.position.set(dx, 0.6, z + dz); c.castShadow = true; g.add(c);
         this.pocketBoxes.push(this.addBox(dx, z + dz, 1.4, 1.4, 1.2));
       }
     }
+    // 1105 thin: Misty — dock way too crowded
     // DOCK OUTSIDE ENHANCE (Misty 1104, stand-ins — Soft replaces): a little scaffold/catwalk vertical + spread cover + civs. Enhancement only.
     const scaf = new THREE.MeshStandardMaterial({ color: 0x8a6a1a, roughness: 0.6, metalness: 0.7 });
     const plank = new THREE.MeshStandardMaterial({ color: 0x4a4038, roughness: 0.85, metalness: 0.2 });
     const cwH = 2.4, cwRamp = 5;
     for (const zone of ZONES) {
-      for (const [cx, za, zb] of [[-16.3, zone.z0 + 3, zone.z0 + 13], [16.3, zone.z1 - 13, zone.z1 - 5]] as const) {
+      for (const [cx, za, zb] of [[-16.3, zone.z0 + 3, zone.z0 + 13]] as const) {
         const len = zb - za, cz = (za + zb) / 2;
         const top = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.25, len), plank); top.position.set(cx, cwH - 0.12, cz); top.castShadow = top.receiveShadow = true; g.add(top);
         for (let pz = za; pz <= zb + 0.01; pz += len / 2) for (const px of [cx - 1, cx + 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.14, cwH, 0.14), scaf); p.position.set(px, cwH / 2, pz); g.add(p); }
@@ -479,7 +479,7 @@ export class World {
         }
       }
       // spread cover: low crates/half-containers off the lane for mid-fight skate-away
-      for (const [dx, dz, sx, sz, h] of [[12.5, 7, 1.6, 2.6, 1.4], [-12.5, 24, 2.6, 1.6, 1.4], [2.5, 38, 1.4, 1.4, 1.2]] as const) {
+      for (const [dx, dz, sx, sz, h] of [[-12.5, 24, 2.6, 1.6, 1.4]] as const) {
         const c = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), crate); c.position.set(dx, h / 2, zone.z0 + dz); c.castShadow = c.receiveShadow = true; g.add(c);
         this.pocketBoxes.push(this.addBox(dx, zone.z0 + dz, sx, sz, h));
       }
@@ -521,7 +521,7 @@ export class World {
       ramp(x, z - 2 - 6, 6, h, 3, plank);
     }
     // civilians (ambient, not cast/combatants): dock workers in lived-in spots — hi-vis vests, idle bob/work loop
-    for (const [x, z, ry, vest] of [[-16.5, 58, Math.PI / 2, 0xff8a1a], [16.6, 100, -Math.PI / 2, 0xe8e03a], [-15.8, 142, Math.PI / 2, 0xff8a1a]] as const) this.addCiv(g, x, z, ry, vest, 0x2a3440);
+    for (const [x, z, ry, vest] of [[-16.5, 58, Math.PI / 2, 0xff8a1a], [-15.8, 142, Math.PI / 2, 0xff8a1a]] as const) this.addCiv(g, x, z, ry, vest, 0x2a3440);
     // heal station in each pocket: glowing emerald med crate (one charge per berth, recharges on run reset)
     const medMat = new THREE.MeshStandardMaterial({ color: 0x1fd18a, emissive: 0x1fd18a, emissiveIntensity: 1.6 });
     for (const zone of ZONES) {

@@ -201,11 +201,11 @@ const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _q3 = new THRE
 // ---------------------------------------------------------------------------
 export interface EnemyDef { key: CharKey; kind: 'viper' | 'enforcer' | 'falcon'; hp: number; speed: number; accel: number; radius: number; poise: number; score: number; tint?: number }
 export const ENEMY_DEFS: Record<string, EnemyDef> = {
-  viper01: { key: 'viper01', kind: 'viper', hp: 42, speed: 6.2, accel: 12, radius: 0.45, poise: 0, score: 100, tint: 0xffc4ec },
-  viper02: { key: 'viper02', kind: 'viper', hp: 42, speed: 6.2, accel: 12, radius: 0.45, poise: 0, score: 100, tint: 0xffc4ec },
-  viper03: { key: 'viper03', kind: 'viper', hp: 42, speed: 6.2, accel: 12, radius: 0.45, poise: 0, score: 100, tint: 0xffc4ec },
-  enforcer: { key: 'enforcer', kind: 'enforcer', hp: 120, speed: 4.6, accel: 9, radius: 0.6, poise: 20, score: 250 },
-  falcon: { key: 'falcon', kind: 'falcon', hp: 700, speed: 6.0, accel: 12, radius: 0.8, poise: 60, score: 2000 },
+  viper01: { key: 'viper01', kind: 'viper', hp: 42, speed: 4.4, accel: 8, radius: 0.45, poise: 0, score: 100, tint: 0xffc4ec },
+  viper02: { key: 'viper02', kind: 'viper', hp: 42, speed: 4.4, accel: 8, radius: 0.45, poise: 0, score: 100, tint: 0xffc4ec },
+  viper03: { key: 'viper03', kind: 'viper', hp: 42, speed: 4.4, accel: 8, radius: 0.45, poise: 0, score: 100, tint: 0xffc4ec },
+  enforcer: { key: 'enforcer', kind: 'enforcer', hp: 120, speed: 3.4, accel: 6, radius: 0.6, poise: 20, score: 250 },
+  falcon: { key: 'falcon', kind: 'falcon', hp: 700, speed: 4.5, accel: 8, radius: 0.8, poise: 60, score: 2000 },
 };
 
 /** Enemy finisher registry — names/beats locked in design/Enemy_Finishers_v001.md.

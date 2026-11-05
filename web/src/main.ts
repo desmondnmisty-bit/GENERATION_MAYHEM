@@ -136,8 +136,6 @@ function pause() { if (game && game.state === 'playing') game.setState('paused')
 
 // ---- button wiring (bound exactly once) ----
 $('btn-play').addEventListener('click', () => startPlaying('new'));
-// LEVEL 2 debug/skip: title button or ?level=2 (Shift+click = skip cutscene)
-$('btn-l2').addEventListener('click', (e) => { if (!game || localStorage.getItem('gm_l2_unlocked') !== '1') return; sfx.init(); sfx.ui(); game.resetRun(); if ((e as MouseEvent).shiftKey) { game.startLevel2(); game.setState('playing'); input.requestLock(); } else game.setState('cutscene'); });
 $('btn-howto').addEventListener('click', () => { sfx.init(); sfx.ui(); show('screen-howto'); });
 $('btn-howto-back').addEventListener('click', () => { sfx.ui(); show('screen-title'); });
 $('btn-credits').addEventListener('click', () => { sfx.init(); sfx.ui(); creditsBackTo = 'screen-title'; show('screen-credits'); });
@@ -178,8 +176,6 @@ async function boot() {
   status.textContent = '';
   const btn = $('btn-play') as HTMLButtonElement;
   btn.disabled = false; btn.textContent = 'PLAY';
-  { const b = $('btn-l2') as HTMLButtonElement; let u = false; try { u = localStorage.getItem('gm_l2_unlocked') === '1'; } catch { /* */ } b.disabled = !u; b.style.display = u ? '' : 'none'; }
-  if (new URLSearchParams(location.search).get('level') === '2' && localStorage.getItem('gm_l2_unlocked') === '1') { const t = setInterval(() => { if (!document.getElementById('cold-open')) { clearInterval(t); game!.startLevel2(); game!.setState('playing'); } }, 300); }
   (window as any).__gm = game.debugApi();
   (window as any).__gm.ready = true;
   (window as any).__gm.quality = () => quality;
@@ -209,15 +205,18 @@ function frame() {
 boot().catch((e) => { console.error(e); $('load-status').textContent = 'Failed to load: ' + e; });
 frame();
 
-// ---- cold-open: movie ONLY from start (Misty 1105 — no pink/writing cards, no Desmond stills before movie) ----
+// ---- cold-open: movie ONLY from start (Misty 1105 — no cards; black while loading, muted autoplay) ----
 (() => {
   const wrap = document.createElement('div');
   wrap.id = 'cold-open';
   wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;cursor:pointer';
   const v = document.createElement('video');
   v.src = 'intro/GM_ColdOpen_Full_v004_nocrawl.mp4';
-  v.muted = false; v.playsInline = true; v.preload = 'auto';
-  v.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block';
+  v.muted = true; // autoplay-safe; unmute on first gesture
+  v.playsInline = true;
+  v.preload = 'auto';
+  v.setAttribute('playsinline', '');
+  v.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;background:#000';
   const hint = document.createElement('div');
   hint.textContent = 'CLICK OR ANY KEY TO SKIP';
   hint.style.cssText = 'position:absolute;right:24px;top:20px;color:#fff8;font:700 16px sans-serif;letter-spacing:1px;padding:8px 14px;z-index:3';
@@ -230,11 +229,15 @@ frame();
     v.pause();
     wrap.remove();
   };
-  const onKey = (e: KeyboardEvent) => { e.preventDefault(); done(); };
-  wrap.addEventListener('click', () => done());
+  const unmute = () => { try { v.muted = false; v.volume = 1; } catch {} };
+  const onKey = (e: KeyboardEvent) => { e.preventDefault(); unmute(); done(); };
+  wrap.addEventListener('click', () => { unmute(); done(); });
   window.addEventListener('keydown', onKey);
   v.addEventListener('ended', () => done());
-  v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+  v.addEventListener('playing', () => { wrap.style.background = '#000'; });
+  const tryPlay = () => { v.play().catch(() => {}); };
+  if (v.readyState >= 2) tryPlay();
+  else { v.addEventListener('loadeddata', tryPlay, { once: true }); v.load(); }
 })();
 
 

@@ -703,7 +703,7 @@ export class Game {
     const wishLen = Math.hypot(wx, wz);
     const sling = this.sling.phase !== 'none' && this.sling.phase !== 'land';
     const rage = this.rageT > 0;
-    const MAX = rage ? 11.8 : 8.0, ACC = rage ? 24 : 14.5; // pace pass: was 11.5 / 21; RAGE = protect burst
+    const MAX = rage ? 7.6 : 5.0, ACC = rage ? 12 : 7.5; // 1105 Misty: way slower + deliberate steer — Dock+HD same // pace pass: was 11.5 / 21; RAGE = protect burst
     let turn = 0;
     if (inp.down('Space')) p.spaceT += dt; else p.spaceT = 0;
     p.braking = (inp.down('ShiftLeft', 'ShiftRight') || p.spaceT > 0.2) && v.grounded;
@@ -711,7 +711,7 @@ export class Game {
       const desired = Math.atan2(wx, wz);
       const d = angleDiff(v.heading, desired);
       const spd01 = Math.min(1, p.fwdSpeed / MAX);
-      const rate = p.fwdSpeed < 2.5 ? 11 : THREE.MathUtils.lerp(7.5, 3.6, spd01);
+      const rate = p.fwdSpeed < 2.0 ? 4.8 : THREE.MathUtils.lerp(3.6, 1.7, spd01);
       const step = THREE.MathUtils.clamp(d, -rate * dt, rate * dt);
       v.heading += step; turn = step / dt;
       const align = Math.cos(d);
@@ -764,7 +764,7 @@ export class Game {
     // GRIND (Soft Hyperdrive rails): lock to the bar, keep speed up, sparks
     if (v.grindBox && v.grounded) {
       const gb = v.grindBox, cx = (gb.minX + gb.maxX) / 2; v.pos.x += (cx - v.pos.x) * Math.min(1, dt * 12);
-      p.fwdSpeed = Math.max(p.fwdSpeed, 7.5); if (!this.grinding) { this.grinding = true; this.grindT = 0; sfx.hop(); }
+      p.fwdSpeed = Math.max(p.fwdSpeed, 4.8); if (!this.grinding) { this.grinding = true; this.grindT = 0; sfx.hop(); }
       this.grindT += dt;
       // grind sparks: hot orange/yellow showers off the trucks
       this.sparkAcc += dt * 60; const nSp = Math.min(3, Math.floor(this.sparkAcc)); this.sparkAcc -= nSp;
@@ -1820,7 +1820,7 @@ export class Game {
     this.turrets = []; this.tShots = [];
     const spots: [number, number, number][] = this.level === 1
       ? [[17.2, 22, 2.2], [-17.2, 74, 2.6], [17.2, 116, 2.2], [-17.2, 156, 2.6]] // Dock quay bollards / container lips
-      : [[-15.5, 112, 3.2], [15.5, 140, 3.2], [-10, 170, 3.2], [10, 170, 3.2]] // Misty lock 1104: EXACTLY 4 — left side, right side, back pair on Slither protect wall;
+      : [[-11, 50, 3.2], [11, 90, 3.2], [-11, 168, 3.2], [11, 168, 3.2]] // Soft Soft Soft Soft Apex lockstep Unity Soft Soft Soft Soft HD: EXACTLY 4 edge guns inside X±12 Soft Soft Soft Soft Apex;
     for (const [x, z, y] of spots) {
       const g = new THREE.Group();
       const base = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.75, 0.6, 10), new THREE.MeshStandardMaterial({ color: 0xc0c8d8, metalness: 0.9, roughness: 0.3 }));
@@ -2242,7 +2242,7 @@ export class Game {
       // title / pause: slow orbit around the heroes
       if (this.state === 'title') {
         const t = performance.now() * 0.00012;
-        cam.position.set(Math.sin(t) * 9 + v.pos.x, 3.4, Math.cos(t) * 9 + v.pos.z + 4);
+        cam.position.set(Math.sin(t) * 6.5 + v.pos.x, 2.6, Math.cos(t) * 6.5 + v.pos.z + 4);
         cam.lookAt(v.pos.x, 1.4, v.pos.z + 4);
         this.world.update(dt, performance.now() / 1000, v.pos);
         this.vixen.syncVisual(dt, 0); this.kailee.syncVisual(dt, 0);
@@ -2261,8 +2261,8 @@ export class Game {
     if (inp.down('ArrowDown')) this.camPitch = Math.min(0.7, this.camPitch + dt);
     if (!inp.locked && !manual && v.speed > 2 && this.sling.phase === 'none') this.camYaw = angleLerp(this.camYaw, v.heading, Math.min(1, dt * 1.8));
     const fwd = dirFromYaw(this.camYaw, tmp);
-    const dist = 8.2 + Math.min(8, v.speed) * 0.12;
-    const hgt = 3.6 + this.camPitch * 4.5;
+    const dist = 5.2 + Math.min(5, v.speed) * 0.08; // 1105 Misty: pull cam in
+    const hgt = 2.7 + this.camPitch * 3.4;
     const target = tmp2.set(v.pos.x - fwd.x * dist, v.y * 0.5 + hgt, v.pos.z - fwd.z * dist);
     target.x = Math.max(target.x, X_MIN + 0.8);
     cam.position.lerp(target, Math.min(1, dt * 9));
@@ -2272,7 +2272,7 @@ export class Game {
     if (this.camFocusT > 0 && this.camFocus) { this.camFocusT -= dt; const w = Math.min(1, this.camFocusT * 2) * 0.45; look.lerp(tmp.set(this.camFocus.pos.x, 1.2, this.camFocus.pos.z), w); }
     cam.lookAt(look);
     if (sh > 0) { cam.position.x += (Math.random() - 0.5) * sh * 0.9; cam.position.y += (Math.random() - 0.5) * sh * 0.9; cam.rotation.z += (Math.random() - 0.5) * sh * 0.08; }
-    const fov = 64 + Math.min(8, v.speed) * 0.6 + this.fovKick;
+    const fov = 58 + Math.min(8, v.speed) * 0.6 + this.fovKick;
     if (Math.abs(cam.fov - fov) > 0.05) { cam.fov += (fov - cam.fov) * Math.min(1, dt * 6); cam.updateProjectionMatrix(); }
   }
 
