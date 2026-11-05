@@ -1,4 +1,4 @@
-// Boot → StartMenu → Dockyard → round end → WeaponUpgrade → Dockyard …
+// Boot → StartMenu → Dockyard → (win: Dock clear) → Hyperdrive_L2 · (loss) → WeaponUpgrade → Dockyard …
 // Watches MatchDirector without editing it: on Won/Lost, awards scrap, fires OnRoundEnd, then opens WeaponUpgrade.
 using System.Collections;
 using UnityEngine;
@@ -13,6 +13,7 @@ namespace GenerationMayhem.UI
         public const string StartScene = "StartMenu";
         public const string FightScene = "Dockyard";
         public const string UpgradeScene = "WeaponUpgrade";
+        public const string HyperdriveScene = "Hyperdrive_L2"; // L2 — unlocks only after Dock clear (mirrors web)
         public static int ScrapPerWin = 250, ScrapPerLoss = 100;
         public static float DelayAfterRound = 5f; // let the Ref Bot KO call play
 
@@ -29,6 +30,7 @@ namespace GenerationMayhem.UI
 
         public static void GoFight() => SceneManager.LoadScene(FightScene);
         public static void GoUpgrade() => SceneManager.LoadScene(UpgradeScene);
+        public static void GoHyperdrive() => SceneManager.LoadScene(HyperdriveScene);
         public static void GoStart() => SceneManager.LoadScene(StartScene);
 
         void OnScene(Scene s)
@@ -50,7 +52,9 @@ namespace GenerationMayhem.UI
             GMFlowEvents.RoundEnd(GMSave.Round, won);       // RefBot KO / MedBot revive hook
             if (won) GMSave.Round += 1;
             yield return new WaitForSecondsRealtime(DelayAfterRound);
-            GoUpgrade();
+            // Dock clear (boss KO win) → Hyperdrive L2. Loss → WeaponUpgrade as before.
+            if (won && Application.CanStreamedLevelBeLoaded(HyperdriveScene)) GoHyperdrive();
+            else GoUpgrade();
         }
 
         /// Phase 0: Vixen damage bonus pushed into VixenCombat. Other stats readable via GMSave.Bonus(fighter, stat).
