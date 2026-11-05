@@ -209,7 +209,7 @@ function frame() {
 boot().catch((e) => { console.error(e); $('load-status').textContent = 'Failed to load: ' + e; });
 frame();
 
-// ---- cold-open: neon magenta story cards on black, THEN the movie (no overlay captions) ----
+// ---- cold-open: neon magenta story cards (+ Soft Soft Soft Soft GO Desmond plates) on black, THEN the movie ----
 (() => {
   const wrap = document.createElement('div');
   wrap.id = 'cold-open';
@@ -219,19 +219,34 @@ frame();
   v.style.cssText = 'width:100%;height:100%;object-fit:contain;display:none';
   const hint = document.createElement('div');
   hint.textContent = 'CLICK OR ANY KEY TO CONTINUE';
-  hint.style.cssText = 'position:absolute;right:24px;top:20px;color:#fff8;font:700 16px sans-serif;letter-spacing:1px;padding:8px 14px';
-  const card = document.createElement('div');
-  card.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 8vw;color:#ff2bd6;font:800 clamp(28px,5vw,72px) "Arial Black",Impact,sans-serif;letter-spacing:2px;line-height:1.2;text-shadow:0 0 6px #ff2bd6,0 0 18px #ff2bd6,0 0 42px #c0008f;opacity:0;transition:opacity .7s;pointer-events:none';
-  const story = [
-    '1995. Vixen and Des.<br>Young. In love.',
-    'Both locked. She got out.<br>She paid every bill.',
-    'Payton. Brianna. Kailee.<br>Born while he cycled jail.',
-    'Iron Rose forced blood contracts.<br>Death Derby. Babies signed.',
-    "Mom wasn't in that room.",
-    'He walked with another woman.<br>She hated still loving him.',
-    'The call hit. Retirement ends.<br>Mama Bear. Fixer. Finisher.',
-    'Can you Survive the Circuit?'
+  hint.style.cssText = 'position:absolute;right:24px;top:20px;color:#fff8;font:700 16px sans-serif;letter-spacing:1px;padding:8px 14px;z-index:3';
+  type Beat = { kind: 'text'; html: string; ms?: number } | { kind: 'image'; src: string; title: string; line: string; ms?: number };
+  const story: Beat[] = [
+    { kind: 'text', html: '1995. Vixen and Des.<br>Young. In love.' },
+    { kind: 'text', html: 'Both locked. She got out.<br>She paid every bill.' },
+    { kind: 'text', html: 'Payton. Brianna. Kailee.<br>Born while he cycled jail.' },
+    // Soft Soft Soft Soft GO Desmond plates — after kids, before Iron Rose contracts. Stripper cut KEEP elsewhere.
+    {
+      kind: 'image',
+      src: 'intro/coldopen/GM_ColdOpen_Desmond_Abuse_Provider_v001.jpg',
+      title: 'HE WOULD NOT WORK',
+      line: 'He sat on his hands. She paid every bill. She did everything. Cruel when he showed.',
+      ms: 4000,
+    },
+    {
+      kind: 'image',
+      src: 'intro/coldopen/GM_ColdOpen_Desmond_LazyCheat_Provider_v001.jpg',
+      title: 'SHE CARRIED IT',
+      line: 'Lazy. Cheating the whole time. She provided. She held it all.',
+      ms: 4000,
+    },
+    { kind: 'text', html: 'Iron Rose forced blood contracts.<br>Death Derby. Babies signed.' },
+    { kind: 'text', html: "Mom wasn't in that room." },
+    { kind: 'text', html: 'The call hit. Retirement ends.<br>Mama Bear. Fixer. Finisher.' },
+    { kind: 'text', html: 'Can you Survive the Circuit?' },
   ];
+  const card = document.createElement('div');
+  card.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 6vw;color:#ff2bd6;font:800 clamp(28px,5vw,72px) "Arial Black",Impact,sans-serif;letter-spacing:2px;line-height:1.2;text-shadow:0 0 6px #ff2bd6,0 0 18px #ff2bd6,0 0 42px #c0008f;opacity:0;transition:opacity .7s;pointer-events:none;z-index:2;gap:1.2vh';
   wrap.append(v, card, hint); document.body.appendChild(wrap);
   let phase: 'cards' | 'movie' | 'done' = 'cards';
   let timer: any = 0; let i = 0;
@@ -242,11 +257,24 @@ frame();
     v.muted = false; v.volume = 1;
     v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
   };
+  const paint = (b: Beat) => {
+    if (b.kind === 'text') {
+      card.innerHTML = b.html;
+      return;
+    }
+    card.innerHTML =
+      '<img alt="" src="' + b.src + '" style="max-width:min(92vw,1100px);max-height:62vh;object-fit:contain;border:2px solid #ff2bd655;box-shadow:0 0 28px #ff2bd644;margin:0 auto 1.4vh;display:block"/>' +
+      '<div style="font:800 clamp(26px,4.6vw,64px) \'Arial Black\',Impact,sans-serif;letter-spacing:3px;color:#ff2bd6;text-shadow:0 0 6px #ff2bd6,0 0 22px #ff2bd6,0 0 48px #c0008f">' + b.title + '</div>' +
+      '<div style="margin-top:0.6vh;max-width:38em;font:700 clamp(14px,2.1vw,28px) sans-serif;letter-spacing:1px;line-height:1.35;color:#ff9ae8;text-shadow:0 0 8px #c0008f">' + b.line + '</div>';
+  };
   const show = () => {
     if (phase !== 'cards') return;
     if (i >= story.length) { card.style.opacity = '0'; timer = setTimeout(startMovie, 800); return; }
-    card.innerHTML = story[i++]; card.style.opacity = '1';
-    timer = setTimeout(() => { card.style.opacity = '0'; timer = setTimeout(show, 800); }, 3400);
+    const beat = story[i++];
+    paint(beat);
+    card.style.opacity = '1';
+    const hold = beat.ms ?? 3400;
+    timer = setTimeout(() => { card.style.opacity = '0'; timer = setTimeout(show, 800); }, hold);
   };
   const advance = () => { if (phase === 'cards') startMovie(); else done(); };
   const onKey = (_e: KeyboardEvent) => advance();

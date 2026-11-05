@@ -1,5 +1,7 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import handgunUrl from './assets/models/vixen_handgun.glb?url';
+import sonicUrl from './assets/models/vixen_sonic_resonator.glb?url';
+import bGauntLUrl from './assets/models/brianna_gauntlet_L.glb?url';
+import bGauntRUrl from './assets/models/brianna_gauntlet_R.glb?url';
 import kaileeGunUrl from './assets/models/kailee_40cal.glb?url';
 import * as THREE from 'three';
 import { Actor, Enemy, ProjectilePool, angleDiff, angleLerp, dirFromYaw, type HitOpts , ENEMY_FINISHERS, ENEMY_DEFS } from './actors';
@@ -74,6 +76,7 @@ export class Game {
   slingAimYaw = 0;
   sling = { phase: 'none' as 'none' | 'tether' | 'launch' | 'land', t: 0, dir: new THREE.Vector3(), dist: 0, hit: new Set<Enemy>(), firstHit: false };
   k = { downed: false, downT: 0, atkCd: 0, shootCd: 0, lastDmg: -99, target: null as Enemy | null, retarget: 0, swing: 0, recoverT: 0, slideCd: 4, slideT: 0, slideHits: 0, slideDir: new THREE.Vector3(), slideTgt: null as Enemy | null };
+  camFocus: Actor | null = null; camFocusT = 0;
   camYaw = 0; camPitch = 0.18; trauma = 0; hitstop = 0; worldScale = 1; fovKick = 0;
   stats = { time: 0, kos: 0, slingKos: 0, splashKos: 0, maxCombo: 0, slings: 0, combo: 0, comboT: 0 };
   aimRing: THREE.Mesh;
@@ -338,13 +341,15 @@ export class Game {
     const tireGlow = new THREE.MeshStandardMaterial({ color: 0x1a0830, emissive: 0x6a00ff, emissiveIntensity: 0.9, roughness: 0.4, metalness: 0.5 });
     const neon = new THREE.MeshStandardMaterial({ color: 0x00f6ff, emissive: 0x00f6ff, emissiveIntensity: 3.2, toneMapped: false });
     const hubHot = new THREE.MeshStandardMaterial({ color: 0xff1fcf, emissive: 0xff1fcf, emissiveIntensity: 3.0, metalness: 0.6, roughness: 0.2, toneMapped: false });
-    this.addTruckTires(kit, 0.6, 0.25, 0.48, 0xff1fcf); void tire; void hub; void red; void steel; void tireGlow; void neon; void hubHot;
+    this.addTruckTires(kit, 0.30, 0.12, 0.32, 0xff1fcf); // Misty voice ladder: Vixen BIGGEST tank
     // REJECT regular handgun look (Misty 1104): Soft pending space-age gun + sonic muzzle; stand-in only.
-    // Misty-stamped Soft HANDGUN (3D 1102, LOD1) in right hand; replaces procedural cannon.
-    const gun = new THREE.Group(); gun.name = 'vixen-handgun'; gun.position.set(0.42, 1.0, 0.2); kit.add(gun);
-    new GLTFLoader().load(handgunUrl, (g) => {
+    // Soft handgun REJECTED (1104) -> approved SONIC RESONATOR (space-age, sonic muzzle) in right hand + emissive sonic emitter ring.
+    const gun = new THREE.Group(); gun.name = 'vixen-sonic-resonator'; gun.position.set(0.42, 1.0, 0.2); kit.add(gun);
+    const emi = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 8, 20), new THREE.MeshStandardMaterial({ color: 0x00f6ff, emissive: 0x00f6ff, emissiveIntensity: 3, toneMapped: false }));
+    emi.position.set(0, 0.02, 0.24); gun.add(emi);
+    new GLTFLoader().load(sonicUrl, (g) => {
       const m = g.scene; const bb = new THREE.Box3().setFromObject(m); const sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
-      const s = 0.32 / Math.max(sz.x, sz.y, sz.z); m.position.sub(c).multiplyScalar(s); m.scale.setScalar(s);
+      const s = 0.4 / Math.max(sz.x, sz.y, sz.z); m.position.sub(c).multiplyScalar(s); m.scale.setScalar(s);
       const holder = new THREE.Group(); holder.add(m); holder.rotation.y = -Math.PI / 2; // barrel (+X) -> forward (+Z)
       holder.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
       gun.add(holder);
@@ -359,9 +364,18 @@ export class Game {
     const steel = new THREE.MeshStandardMaterial({ color: 0x23252a, metalness: 0.9, roughness: 0.35 });
     if (al.key === 'brianna') {
       const coil = new THREE.MeshStandardMaterial({ color: 0x1fd18a, emissive: 0x1fd18a, emissiveIntensity: 2.4, toneMapped: false });
-      for (const sx of [-0.36, 0.36]) {
-        const g = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.36, 10), steel); g.rotation.x = Math.PI / 2; g.position.set(sx, 1.0, 0.16); kit.add(g);
-        for (const dz of [-0.1, 0, 0.1]) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.088, 0.016, 6, 14), coil); r.position.set(sx, 1.0, 0.16 + dz); kit.add(r); }
+      // Soft Soft L/R thermal coil gauntlets (approved): true LEFT + RIGHT meshes (no mirroring), recolored to her emerald.
+      const dark = new THREE.MeshStandardMaterial({ color: 0x0d2a1c, metalness: 0.85, roughness: 0.35 });
+      for (const [sx, url] of [[-0.36, bGauntLUrl], [0.36, bGauntRUrl]] as const) {
+        const slot = new THREE.Group(); slot.position.set(sx, 1.0, 0.16); kit.add(slot);
+        new GLTFLoader().load(url, (g) => {
+          const m = g.scene; const bb = new THREE.Box3().setFromObject(m); const sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+          const sc = 0.4 / Math.max(sz.x, sz.y, sz.z); m.position.sub(c).multiplyScalar(sc); m.scale.setScalar(sc);
+          m.traverse((o) => { const me = o as THREE.Mesh; if (!me.isMesh) return; me.castShadow = true;
+            const mats = (Array.isArray(me.material) ? me.material : [me.material]).map((mt) => /dark/i.test(mt.name) ? dark : coil);
+            me.material = Array.isArray(me.material) ? mats : mats[0]; });
+          slot.add(m);
+        });
       }
       const chest = new THREE.Mesh(new THREE.CircleGeometry(0.09, 16), new THREE.MeshStandardMaterial({ color: 0x1fd18a, emissive: 0x1fd18a, emissiveIntensity: 2.5, toneMapped: false })); chest.position.set(0, 1.28, 0.17); kit.add(chest);
       const pod = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.2), steel); pod.position.set(0.2, 1.52, -0.02); kit.add(pod);
@@ -374,7 +388,11 @@ export class Game {
       for (let i = 0; i < 6; i++) { const ang = i / 6 * Math.PI * 2; const b = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.46, 6), i % 2 ? steel : pur); b.rotation.x = Math.PI / 2; b.position.set(Math.cos(ang) * 0.05, Math.sin(ang) * 0.05, 0.22); barrels.add(b); }
     }
     root.traverse((o) => { if (/WarRig_Wheel/i.test(o.name)) o.visible = false; });
-    this.addTruckTires(kit, 0.58, 0.24, 0.46, al.key === 'brianna' ? 0x1fd18a : 0x9a4cff);
+    if (al.key === 'brianna') {
+      this.addTruckTires(kit, 0.22, 0.09, 0.24, 0x1fd18a); // Misty voice ladder: Brianna mid
+    } else {
+      this.addTruckTires(kit, 0.27, 0.105, 0.29, 0x9a4cff); // Misty voice ladder: Payton tank #2
+    }
     kit.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
     root.add(kit);
   }
@@ -397,7 +415,7 @@ export class Game {
     const laser = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 1.2, 4).rotateX(Math.PI / 2).translate(0, 0, 0.6),
       new THREE.MeshBasicMaterial({ color: 0xff1010, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     laser.position.set(0, -0.035, L * 0.5); laser.name = 'kailee-laser'; gun.add(laser);
-    a.cm.root.traverse((o) => { if (/WarRig_Wheel/i.test(o.name)) o.visible = false; }); const wk = new THREE.Group(); wk.name = 'kailee-wheels'; this.addTruckTires(wk, 0.14, 0.04, 0.16, 0xff4fa0); a.cm.root.add(wk);
+    a.cm.root.traverse((o) => { if (/WarRig_Wheel/i.test(o.name)) o.visible = false; }); const wk = new THREE.Group(); wk.name = 'kailee-wheels'; this.addTruckTires(wk, 0.16, 0.06, 0.18, 0xff4fa0); a.cm.root.add(wk); // Misty: Kailee bigger, still under Brianna
   }
   addChaos(n: number, reason?: string) {
     if (this.sling.phase !== 'none') return;
@@ -1095,15 +1113,16 @@ export class Game {
     const a = al.a;
     if (al.key === 'brianna') { al.swing++; (al as any).chest = !(al as any).chest; }
     if (al.key === 'brianna' && (al as any).chest) {
-      this.banner('CHEST-BUSTER', 'BRIANNA · THERMAL CORE BLAST', 1.0); sfx.cone(); this.shake(0.3);
+      this.banner('CHEST BUSTER', 'BRIANNA · POW POW POW', 1.4); sfx.cone(); this.shake(0.45); this.trans.ring(a.pos, al.col, 0.4, 4.5, 0.5); this.dmg.spawn(tmp.copy(a.pos).setY(3), 'CHEST BUSTER', 'big');
     } else if (al.key === 'brianna') {
       this.banner('THERMAL COIL LASH', 'BRIANNA · BURN ZONE', 1.0);
       if (a.anim.has('Attack_Punch_R')) a.anim.once('Attack_Punch_R', 0.5); a.punchR = 1;
       sfx.blade(); sfx.zap(); this.shake(0.2);
       this.trans.ring(a.pos, al.col, 0.4, 3.6, 0.45); this.trans.ring(a.pos, 0x3dff9a, 0.2, 3.0, 1.6, 0.5);
     } else {
-      this.banner('HUNDRED COUNT', 'PAYTON · GATLING SPIN-UP', 1.0);
-      sfx.tether();
+      this.banner('HUNDRED COUNT', 'PAYTON · 4×100 GATLING AREA CLEAR', 1.6);
+      sfx.tether(); this.shake(0.35); this.fovKick = -5; this.camFocus = a; this.camFocusT = 1.1;
+      this.trans.ring(a.pos, al.col, 0.4, 6, 0.6); (al as any).payBoom = 0;
     }
   }
   private updateAllySig(al: Ally, t: Enemy | null, dir: THREE.Vector3, dt: number) {
@@ -1148,6 +1167,17 @@ export class Game {
           this.proj.fire('pistol', from, d.clone(), 60, 2.5, 'hero', 'payton');
           this.particles.emit(from, d.clone().multiplyScalar(3), Math.random() < 0.5 ? col : COL.white, 0.3, 0.05);
           if (Math.random() < 0.5) sfx.pistol();
+          // CINEMATIC amplify: tracer storm, impact sprays, debris, sustained shake
+          for (let j = 0; j < 3; j++) this.particles.emit(from, d.clone().applyAxisAngle(UP, (Math.random() - 0.5) * 0.5).multiplyScalar(18 + Math.random() * 10), j ? COL.org : col, 0.35, 0.12);
+          if (t) this.particles.burst(tmp.copy(t.pos).setY(0.8), 4, col, 7, 0.15, 0.4, 3, 1);
+          this.shake(0.05);
+        }
+        const pb = (al as any).payBoom ?? 0;
+        if (el > S.spin + 0.8 && pb === 0 || el > S.dur - 0.25 && pb === 1) {
+          (al as any).payBoom = pb + 1;
+          const at = tmp2.copy(a.pos).addScaledVector(dir, 5); this.bang(at, pb ? 1.4 : 1); this.trans.ring(at, al.col, 0.5, 8, 0.5);
+          for (const e of this.enemies) if (e.state !== 'dead' && e.state !== 'spawn' && Math.hypot(e.pos.x - at.x, e.pos.z - at.z) < 6) this.hurt(e, 12, tmp.set(e.pos.x - at.x, 0, e.pos.z - at.z).normalize().clone(), 9, { source: 'payton', stagger: 0.8, color: al.col });
+          if (pb) this.banner('AREA CLEARED', 'PAYTON · 400 ROUNDS', 1.0);
         }
       }
     }
@@ -1252,7 +1282,7 @@ export class Game {
     if (!k.anim.busy) k.anim.setBase(k.speed > 1.2 ? 'Locomotion_Fwd' : 'Idle_Skate', 0.7 + k.speed / 14);
   }
 
-  // ------------------------------------------------------------------ Kailee finisher: SLIDE UNDER SLICE (blue, Misty lock 2026-11-02)
+  // ------------------------------------------------------------------ Kailee finisher: SLIP AND SLIDE (blue, Misty lock 2026-11-02)
   // phases: approach (normal AI) -> under (0.0-0.32s duck dash through target) -> slice (blue blade hits) -> recover
   static SLIDE = { cooldown: 5.5, cdJitter: 2, dur: 0.6, speed: 15, hit1: 22, hit2: 18, hitAt1: 0.2, hitAt2: 0.36 };
   private startSlideUnder(t: Enemy, dist: number) {
@@ -1289,7 +1319,7 @@ export class Game {
       this.particles.burst(at, 6, COL.white, 3, 0.3, 0.15, 0, 1);
       this.trans.ring(at, 0x4aa8ff, 0.3, 3.2, 0.3);
       sfx.blade(); this.shake(0.3); this.hitstop = 0.07;
-      if (ks.slideHits === 1) this.dmg.spawn(tmp3.copy(t.pos).setY(2.4), 'SLIDE UNDER', 'heal'); if (ks.slideHits === 1) this.banner('SLIDE UNDER', 'KAILEE · THERMAL BLADE SLICE', 0.9);
+      if (ks.slideHits === 1) this.dmg.spawn(tmp3.copy(t.pos).setY(2.4), 'SLIP AND SLIDE', 'big'); if (ks.slideHits === 1) { this.banner('SLIP AND SLIDE', 'KAILEE · THERMAL BLADE SLICE', 1.2); this.trans.ring(t.pos, 0x2aa8ff, 0.3, 3.5, 0.4); this.shake(0.25); }
     } else if (ks.slideHits < 2 && (!t || t.state === 'dead')) ks.slideHits = 2;
     k.integrate(dt, this.world.colliders);
     if (ks.slideT <= 0) { ks.slideT = 0; ks.slideTgt = null; k.cm.pivot.position.y = 0; k.cm.pivot.rotation.x = 0; }
@@ -2239,6 +2269,7 @@ export class Game {
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     const sh = this.trauma * this.trauma;
     const look = tmp3.set(v.pos.x + fwd.x * 4.5, 1.0 + v.y * 0.5, v.pos.z + fwd.z * 4.5);
+    if (this.camFocusT > 0 && this.camFocus) { this.camFocusT -= dt; const w = Math.min(1, this.camFocusT * 2) * 0.45; look.lerp(tmp.set(this.camFocus.pos.x, 1.2, this.camFocus.pos.z), w); }
     cam.lookAt(look);
     if (sh > 0) { cam.position.x += (Math.random() - 0.5) * sh * 0.9; cam.position.y += (Math.random() - 0.5) * sh * 0.9; cam.rotation.z += (Math.random() - 0.5) * sh * 0.08; }
     const fov = 64 + Math.min(8, v.speed) * 0.6 + this.fovKick;
