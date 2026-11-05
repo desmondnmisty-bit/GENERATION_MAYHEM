@@ -223,8 +223,9 @@ frame();
   type Beat = { kind: 'text'; html: string; ms?: number } | { kind: 'image'; src: string; title: string; line: string; ms?: number };
   const story: Beat[] = [
     { kind: 'text', html: '1995. Vixen and Des.<br>Young. In love.' },
-    { kind: 'text', html: 'Both locked. She got out.<br>She paid every bill.' },
-    { kind: 'text', html: 'Payton. Brianna. Kailee.<br>Born while he cycled jail.' },
+    { kind: 'text', html: '1996. Both locked.<br>Out by end of 96. She never went back.' },
+    { kind: 'text', html: 'Payton 1998. Brianna 2003.<br>Kailee 2008.' },
+    { kind: 'text', html: 'Des jail 2004. Again 2010.<br>Left with another woman. She raised them alone.' },
     // Soft Soft Soft Soft GO Desmond plates — after kids, before Iron Rose contracts. Stripper cut KEEP elsewhere.
     {
       kind: 'image',
