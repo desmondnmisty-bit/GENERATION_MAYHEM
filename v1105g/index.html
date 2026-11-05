@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head><!-- compressed-pages-v1105g --><style id="critical-black-1105">html,body,#app,#cold-open{background:#000!important;margin:0;height:100%;overflow:hidden}</style>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Generation Mayhem — Dock Contracts | Dark Logic Studios</title>
+  <script type="module" crossorigin src="./assets/index-D1jJR_ZX.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-s4e4XaSC.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="c"></canvas>
+    <div id="fx-vignette"></div>
+    <div id="fx-flash"></div>
+    <div id="dmg-layer"></div>
+
+    <div id="hud" class="hidden">
+      <div id="sys-btns"><button id="btn-mute" title="M">🔊 SOUND [M]</button><button id="btn-pause" title="P / Esc">⏸ PAUSE [P]</button></div>
+      <div id="coms"></div>
+      <div id="hud-bars">
+        <div class="bar-row"><span class="bar-label">VIXEN</span><div class="bar"><div id="hp-vixen" class="fill vixen"></div></div></div>
+        <div class="bar-row"><span class="bar-label k">KAILEE</span><div class="bar small"><div id="hp-kailee" class="fill kailee"></div></div><span id="kailee-status"></span></div>
+        <div class="bar-row"><span class="bar-label b">BRIANNA</span><div class="bar small"><div id="hp-brianna" class="fill brianna"></div></div><span id="brianna-status" class="ally-status"></span></div>
+        <div class="bar-row"><span class="bar-label py">PAYTON</span><div class="bar small"><div id="hp-payton" class="fill payton"></div></div><span id="payton-status" class="ally-status"></span></div>
+      </div>
+      <div id="hud-wave"><div id="wave-label">WAVE 1/4</div><div id="enemy-count">HOSTILES 0</div></div>
+      <div id="objective">Clear the quay</div>
+      <div id="boss" class="hidden"><div class="bn">FALCON — IRON ROSE</div><div class="bar"><div id="hp-boss" class="fill"></div></div></div>
+      <div id="chaos-wrap">
+        <div id="chaos-label">MOM'S FRENZY</div>
+        <div id="chaos-bar"><div id="chaos-fill"></div><div id="chaos-ticks"></div></div>
+        <div id="frenzy-reason"></div>
+        <div id="chaos-ready">SHATTER-SLINGSHOT READY — PRESS <b>E</b></div>
+      </div>
+      <div id="abilities">
+        <div class="ab" id="ab-punch"><b>LMB / J</b><span>SHOOT</span></div>
+        <div class="ab" id="ab-cone"><b>RMB / K</b><span>SONIC SCREAM</span><i></i></div>
+        <div class="ab" id="ab-sling"><b>E / L</b><span>SLINGSHOT</span><i></i></div>
+      </div>
+      <div id="banner"></div>
+      <div id="hint"><b>FOLLOW THE GREEN RAIL NORTH</b> (W) · clear each berth, gate opens · LMB/J shoot · RMB/K scream · E/L slingshot when CHAOS full · Esc pause</div>
+    </div>
+
+    <div id="touch" class="hidden">
+      <div id="stick"><div id="stick-knob"></div></div>
+      <div id="tbtns">
+        <button data-k="punch">SHOOT</button>
+        <button data-k="cone">SCREAM</button>
+        <button data-k="sling">SLING</button>
+      </div>
+      <button id="tpause">II</button>
+    </div>
+
+    <div id="screen-title" class="screen">
+      <div class="title-inner">
+        <div class="gm-logo"><span class="gm1">GENERATION</span><span class="gm2">MAYHEM</span></div>
+        <div class="gm-sub">DOCK CONTRACTS</div>
+        <div class="gm-tag">VIXEN &amp; KAILEE · NIGHT SHIFT AT THE DOCKYARD</div>
+        <button id="btn-play" class="btn" disabled>LOADING…</button>
+        <button id="btn-l2" class="btn ghost" disabled style="display:none">LEVEL 2: HYPERDRIVE</button>
+        <button id="btn-howto" class="btn ghost">HOW TO PLAY</button>
+        <button id="btn-credits" class="btn ghost">CREDITS</button>
+        <div id="load-status"></div>
+        <div class="studio">
+          <img id="lockup" alt="Dark Logic Studios" />
+          <div class="studio-name">Dark Logic Studios ™</div>
+          <div class="studio-tag">SOPHISTICATED BRUTALITY</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-howto" class="screen hidden">
+      <div class="panel wide scroll">
+        <h2>HOW TO PLAY</h2>
+        <div class="howto-grid">
+          <section>
+            <h3>THE GOAL</h3>
+            <p>Skate north through the night dockyard. Survive <b>4 waves</b> of Pink Vipers and the Iron Rose Syndicate. Each cleared wave drops the magenta laser fence ahead. Beat Falcon at the last berth, then skate into the <b>EXTRACTION GATE</b> to win.</p>
+            <h3>KEYBOARD &amp; MOUSE</h3>
+            <ul class="keys">
+              <li><b>W A S D</b> skate. You have momentum, so accelerate, carve and glide</li>
+              <li><b>MOUSE</b> aim the camera (click the game to lock the mouse; Esc releases it)</li>
+              <li><b>SPACE</b> / <b>SHIFT</b> brake · follow the <b>green arrow</b> to your next objective</li>
+              <li><b>LEFT CLICK / J</b> Soft handgun SHOOT (pistol shots, ~0.3s cooldown)</li>
+              <li><b>RIGHT CLICK / K</b> sonic cone (short-range blast, staggers everything)</li>
+              <li><b>E / L</b> SHATTER-SLINGSHOT (when Chaos is full)</li>
+              <li><b>F / Q</b> partner CHECK: when Fang's PINK POUNCE pins you, Kailee body-checks her off. If Kailee is pinned, press J near Fang to check her off</li>
+              <li><b>ARROW KEYS</b> turn the camera without the mouse</li>
+              <li><b>ESC / P</b> pause · <b>M</b> mute</li>
+            </ul>
+            <h3>TOUCH</h3>
+            <p>Left stick to skate. Use the <b>SHOOT</b>, <b>SCREAM</b> and <b>SLING</b> buttons. <b>II</b> pauses.</p>
+          </section>
+          <section>
+            <h3>KAILEE &amp; THE CHAOS METER</h3>
+            <p>Kailee (the Striker) fights at your side with flaming wrist blades and her pearl .40. When she takes damage, Vixen's <b>CHAOS meter</b> fills. If Kailee goes down, she gets back up after 8 seconds with 25% health.</p>
+            <h3>SHATTER-SLINGSHOT</h3>
+            <p>When Chaos is full, the screen shakes, a cue sounds and the meter flashes. Aim at a line of enemies and press <b>E</b>. Vixen tethers to Kailee and screams through the Resonator Muzzle, and the sonic blast launches Kailee straight through them for massive damage and knockback.</p>
+            <h3>DOCK HAZARDS</h3>
+            <ul class="keys">
+              <li><b>CRANE HOOK</b> a swinging container load sweeps across berth 2. Time your pass or skate around it.</li>
+              <li><b>ELECTRIFIED PUDDLES</b> crackle on and off. Skate around them or wait until they're dark. Enemies get fried too.</li>
+              <li><b>WATER'S EDGE</b> skate off the quay (past the yellow hazard curb) and you go in. You respawn, but it costs health. Knock enemies in for an instant KO.</li>
+            </ul>
+          </section>
+        </div>
+        <button id="btn-howto-back" class="btn">BACK</button>
+      </div>
+    </div>
+
+    <div id="screen-credits" class="screen hidden">
+      <div class="panel wide scroll credits">
+        <div class="cr-game">GENERATION MAYHEM</div>
+        <div class="cr-sub">DOCK CONTRACTS</div>
+        <div class="cr-line">A Dark Logic Studios game</div>
+        <div class="cr-line">Created by Misty McDaniel Breeden</div>
+        <h3>SPECIAL THANKS</h3>
+        <p id="dedication" class="dedication">Carl Mitchell, Jessica Greene &amp; Glenda Smith without yalls love, support, and backing nothing I've done would have been possible. Love you guys!</p>
+        <div class="cr-end">Dark Logic Studios ™</div>
+        <button id="btn-credits-back" class="btn">BACK</button>
+      </div>
+    </div>
+
+    <div id="screen-pause" class="screen hidden">
+      <div class="panel">
+        <h2>PAUSED</h2>
+        <button id="btn-resume" class="btn">RESUME</button>
+        <button id="btn-replay-p" class="btn ghost">REPLAY</button>
+        <button id="btn-quality" class="btn ghost">GRAPHICS: HIGH</button>
+        <button id="btn-menu-p" class="btn ghost">MAIN MENU</button>
+      </div>
+    </div>
+
+    <div id="screen-win" class="screen hidden">
+      <div class="panel">
+        <h2 class="win">CONTRACT COMPLETE</h2>
+        <div class="sub">Dockyard cleared. Vixen &amp; Kailee extracted.</div>
+        <div id="win-stats" class="stats"></div>
+        <button id="btn-replay-w" class="btn">REPLAY</button>
+        <button id="btn-credits-w" class="btn ghost">CREDITS</button>
+        <button id="btn-menu-w" class="btn ghost">MAIN MENU</button>
+      </div>
+    </div>
+
+    <div id="screen-lose" class="screen hidden">
+      <div class="panel">
+        <h2 class="lose">VIXEN DOWN</h2>
+        <div class="sub">The dock keeps what it takes.</div>
+        <div id="lose-stats" class="stats"></div>
+        <button id="btn-retry-l" class="btn">RETRY WAVE</button>
+        <button id="btn-replay-l" class="btn ghost">REPLAY</button>
+        <button id="btn-menu-l" class="btn ghost">MAIN MENU</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
