@@ -1,6 +1,6 @@
 // Runtime-safe Hyperdrive L2 (Soft) layout. Used by HyperdriveL2RuntimeBootstrap (play) AND the Editor menu builder (bake).
 // Same coords as web Soft L2 (+Z north): Approach 0–35 · Ring Hall 35–90 · Corridor 90–130 · Cockpit Core 130–180 · Apex 180–215.
-// Soft HOLD: no Tripo war-rig meshes — capsule stand-ins + WarRigTireStandIn ladder (Vixen .30 / Payton .27 / Brianna .22 / Kailee .16).
+// Soft mesh GO: stamped Tripo war-rig meshes via WarRigTireStandIn.Apply (Resources/WarRigs) + WarRigTireStandIn ladder (Vixen .30 / Payton .27 / Brianna .22 / Kailee .16).
 using UnityEngine;
 using GenerationMayhem.Player; using GenerationMayhem.Traversal; using GenerationMayhem.Art;
 namespace GenerationMayhem.Hyperdrive

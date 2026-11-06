@@ -1,5 +1,5 @@
 // LOCAL ONLY — Misty lockstep 2026-11-04: mirror Three.js web/src/game.ts addTruckTires R/T/X exactly.
-// Soft Soft Soft Soft mesh HOLD; these are Dock/HD procedural stand-ins only.
+// Soft Soft Soft Soft mesh GO (Misty pt456u 2026-11-05): stamped Tripo war-rig meshes hung from Assets/Resources/WarRigs (same GLBs as web/src/assets/models/warrig). Requires com.unity.cloud.gltfast to import .glb.
 using UnityEngine;
 
 namespace GenerationMayhem.Art
@@ -38,6 +38,7 @@ namespace GenerationMayhem.Art
         {
             if (root == null) return null;
             HideBakedWheels(root);
+            HangWarRigMesh(root, who);
             var old = root.Find("WarRigTireStandIn");
             if (old) Object.DestroyImmediate(old.gameObject);
 
@@ -72,6 +73,35 @@ namespace GenerationMayhem.Art
                 SetMat(cap, hub, hub, 2.2f);
             }
             return kit;
+        }
+
+        public static string MeshName(WarRigWho who) =>
+            who == WarRigWho.Vixen ? "GM_Vixen_WarRig_v010_Soft" :
+            who == WarRigWho.Payton ? "GM_Payton_WarRig_v006_Soft" :
+            who == WarRigWho.Brianna ? "GM_Brianna_WarRig_v005_Soft" : "GM_Kailee_WarRig_v006_Soft";
+
+        /// <summary>Lockstep w/ Three.js hangWarRig: scale stamped mesh to hero height, feet on root, hide old capsule body.</summary>
+        public static Transform HangWarRigMesh(Transform root, WarRigWho who, float height = 1.7f)
+        {
+            var old = root.Find("WarRigMesh");
+            if (old) Object.DestroyImmediate(old.gameObject);
+            var prefab = Resources.Load<GameObject>("WarRigs/" + MeshName(who));
+            if (prefab == null) { Debug.LogError("[GM] WAR-RIG MESH FAILED to load Resources/WarRigs/" + MeshName(who) + " (glTFast installed?) — keeping stand-in body"); return null; }
+            foreach (var r in root.GetComponents<Renderer>()) r.enabled = false; // capsule stand-in body
+            var holder = new GameObject("WarRigMesh").transform;
+            holder.SetParent(root, false);
+            var inst = Object.Instantiate(prefab, holder, false);
+            var rs = inst.GetComponentsInChildren<Renderer>();
+            if (rs.Length > 0)
+            {
+                var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
+                float s = b.size.y > 1e-4f ? height / b.size.y : 1f;
+                inst.transform.localScale = Vector3.one * s;
+                var lc = holder.InverseTransformPoint(b.center); var lmin = holder.InverseTransformPoint(b.min);
+                inst.transform.localPosition = new Vector3(-lc.x * s, -lmin.y * s, -lc.z * s);
+            }
+            Debug.Log("[GM] war-rig mesh hung: " + who);
+            return holder;
         }
 
         static void HideBakedWheels(Transform root)

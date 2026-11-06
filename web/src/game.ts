@@ -1,4 +1,9 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import wrVixenUrl from './assets/models/warrig/GM_Vixen_WarRig_v010_Soft.glb?url';
+import wrPaytonUrl from './assets/models/warrig/GM_Payton_WarRig_v006_Soft.glb?url';
+import wrBriannaUrl from './assets/models/warrig/GM_Brianna_WarRig_v005_Soft.glb?url';
+import wrKaileeUrl from './assets/models/warrig/GM_Kailee_WarRig_v006_Soft.glb?url';
+const WARRIG_URLS: Record<string, string> = { vixen: wrVixenUrl, payton: wrPaytonUrl, brianna: wrBriannaUrl, kailee: wrKaileeUrl };
 import sonicUrl from './assets/models/vixen_sonic_resonator.glb?url';
 import bGauntLUrl from './assets/models/brianna_gauntlet_L.glb?url';
 import bGauntRUrl from './assets/models/brianna_gauntlet_R.glb?url';
@@ -328,6 +333,22 @@ export class Game {
       w.light.intensity = w.lb * boost * flick;
     }
   }
+  /** Soft Soft Soft Soft mesh GO (Misty pt456u): hang stamped Tripo war-rig over the rig; hide the old skinned body. Scaled to the rig's height, feet on root. */
+  hangWarRig(root: THREE.Object3D, key: string) {
+    const url = WARRIG_URLS[key]; if (!url) return;
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+    const bb0 = new THREE.Box3(); root.traverse((o) => { const m = o as THREE.SkinnedMesh; if (m.isSkinnedMesh) { m.geometry.computeBoundingBox(); bb0.union(m.geometry.boundingBox!.clone().applyMatrix4(m.matrixWorld).applyMatrix4(inv)); } });
+    const H = bb0.isEmpty() ? 1.7 : Math.max(1.2, bb0.max.y - bb0.min.y);
+    new GLTFLoader().load(url, (g) => {
+      const m = g.scene; const bb = new THREE.Box3().setFromObject(m); const sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+      const sc = H / sz.y; m.scale.setScalar(sc); m.position.set(-c.x * sc, -bb.min.y * sc, -c.z * sc);
+      const holder = new THREE.Group(); holder.name = key + '-warrig-mesh'; holder.add(m);
+      holder.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh) { me.castShadow = true; me.receiveShadow = true; } });
+      root.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) o.visible = false; });
+      root.add(holder); console.info('[GM] war-rig mesh hung:', key, 'h', H.toFixed(2));
+    }, undefined, (e) => console.error('[GM] WAR-RIG MESH FAILED — keeping old body for', key, e));
+  }
   // TEMP web stand-in until concept/3D redo: oversized skate wheels + chunky Sophisticated-Brutality cannon.
   addVixenKit(a: Actor) {
     const root = a.cm.root, kit = new THREE.Group(); kit.name = 'vixen-kit';
@@ -356,6 +377,7 @@ export class Game {
     });
     kit.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
     root.add(kit);
+    this.hangWarRig(root, 'vixen');
   }
   gatlingSpin = 0;
   /** Web stand-ins until Soft models: Brianna thermal arm gauntlets + chest plate + BB shoulder seeker pod; Payton Gatling + big amp wheels (Vixen pattern). */
@@ -395,6 +417,7 @@ export class Game {
     }
     kit.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
     root.add(kit);
+    this.hangWarRig(root, al.key);
   }
   // Kailee pearl .40 (3D 1103, LOD1) in right hand + thin red underbarrel laser. Replaces stand-in K pistol.
   kaileeMuzzle = new THREE.Object3D();
@@ -415,7 +438,7 @@ export class Game {
     const laser = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 1.2, 4).rotateX(Math.PI / 2).translate(0, 0, 0.6),
       new THREE.MeshBasicMaterial({ color: 0xff1010, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     laser.position.set(0, -0.035, L * 0.5); laser.name = 'kailee-laser'; gun.add(laser);
-    a.cm.root.traverse((o) => { if (/WarRig_Wheel/i.test(o.name)) o.visible = false; }); const wk = new THREE.Group(); wk.name = 'kailee-wheels'; this.addTruckTires(wk, 0.16, 0.06, 0.18, 0xff4fa0); a.cm.root.add(wk); // Misty: Kailee bigger, still under Brianna
+    a.cm.root.traverse((o) => { if (/WarRig_Wheel/i.test(o.name)) o.visible = false; }); const wk = new THREE.Group(); wk.name = 'kailee-wheels'; this.addTruckTires(wk, 0.16, 0.06, 0.18, 0xff4fa0); a.cm.root.add(wk); this.hangWarRig(a.cm.root, 'kailee'); // Misty: Kailee bigger, still under Brianna
   }
   addChaos(n: number, reason?: string) {
     if (this.sling.phase !== 'none') return;
