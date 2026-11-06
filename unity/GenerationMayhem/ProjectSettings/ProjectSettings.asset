@@ -1,0 +1,10 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!129 &1
+PlayerSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 26
+  productGUID: c0ffee00ddcc00112233445566778899
+  companyName: Dark Logic Studios
+  productName: Generation Mayhem
+  activeInputHandler: 2

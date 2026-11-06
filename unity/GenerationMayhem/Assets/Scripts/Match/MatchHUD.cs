@@ -190,8 +190,8 @@ namespace GenerationMayhem.Match
         }
 
         const string HelpText =
-            "<b>CONTROLS</b>  (H hides this)\n" +
-            "WASD / left stick: skate     Left Shift: jump     Space: brake     J: air trick\n" +
+            "<b>CONTROLS</b>  (H hides this · Esc / Start: pause + rebind)\n" +
+            "WASD / left stick: skate     Left Shift / RT: jump+fast gear     Space / A (hold): brake     J / LT: air trick\n" +
             "K / LMB / X: light (Jab › Cross › Kick)\n" +
             "L / RMB / Y: heavy (Elbow › Heavy Kick)   in the air: Ramp Slam\n" +
             "E / B: Check (shove, revives family, breaks Viper-Lock)\n" +
