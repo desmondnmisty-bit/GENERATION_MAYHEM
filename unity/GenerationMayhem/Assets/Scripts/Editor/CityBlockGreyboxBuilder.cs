@@ -14,6 +14,7 @@ using Unity.Cinemachine;
 using GenerationMayhem.Player;
 using GenerationMayhem.Combat;
 using GenerationMayhem.Traversal;
+using GenerationMayhem.Art;
 
 namespace GenerationMayhem.EditorTools
 {
@@ -148,6 +149,8 @@ namespace GenerationMayhem.EditorTools
             Crate(brk, new Vector3(-18.5f, 0, 4.5f));
             Crate(brk, new Vector3(-17.5f, 0, 3.5f));
             Crate(brk, new Vector3(-16.5f, 0, 4.5f));
+            // Loot props beside the crates. Not fighters. Imported mesh colliders are stripped; Breakable owns each box.
+            LootChestHang.PlaceAll(brk, false);
         }
 
         // ------------------------------------------------------------------ zone A
