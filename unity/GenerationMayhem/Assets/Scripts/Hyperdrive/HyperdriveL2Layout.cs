@@ -82,7 +82,32 @@ namespace GenerationMayhem.Hyperdrive
             var light = Object.FindFirstObjectByType<Light>(); if (light) light.color = new Color(0.7f, 0.75f, 1f);
             RenderSettings.ambientLight = new Color(0.25f, 0.2f, 0.35f);
             BuildApex(root, floorM, wallM, player.transform);
+            HangWorldProps(root);
             return root;
+        }
+
+        /// GM world props (2026-11-06, Resources/WorldProps): stamped Tripo roadway/portal PROPS hung into the existing
+        /// Soft L2 slots, visible on top of the greybox stand-ins. Visual-only (no colliders) — kickers, rails, funboxes,
+        /// clutter, shops and the X clamp keep all gameplay collision. These are props, never enemies or Vipers.
+        static void HangWorldProps(Transform root)
+        {
+            var props = new GameObject("GM_WorldProps").transform; props.SetParent(root, false);
+            // Roadway slot 1 — magenta elevated highway ramp over the Ring Hall center lane (greybox Kicker 0/51 + Funbox 0/60 slot).
+            WorldPropHang.Hang(WorldPropHang.RoadwayMagentaRamp, props, new Vector3(0, 0, 60), 0f, 13f);
+            // Portal slot — Apex doorway (web lockstep: doorway/elevator frame at z≈177.2–177.6; Unity Apex starts at 180).
+            WorldPropHang.Hang(WorldPropHang.PortalPurpleGate, props, new Vector3(0, 0, 178.6f), 0f, 7.5f, WorldPropHang.Fit.Height);
+            // Roadway slot 2 — split-deck KIT: separate slabs/walls placed per slot (web raised-side-deck lockstep), never one solid block.
+            WorldPropHang.HangSplitDeckKit(props, "SplitDeckKit", new[]
+            {
+                new WorldPropHang.KitSlot(new Vector3(-10.5f, 0, 50), 0f, 7f),    // Ring Hall west side deck
+                new WorldPropHang.KitSlot(new Vector3(10.5f, 0, 80), 180f, 7f),   // Ring Hall east side deck
+                new WorldPropHang.KitSlot(new Vector3(-8.5f, 0, 150), 0f, 6f),    // Cockpit Core west deck
+                new WorldPropHang.KitSlot(new Vector3(8.5f, 0, 162), 180f, 6f),   // Cockpit Core east deck
+                new WorldPropHang.KitSlot(new Vector3(-3.8f, 0, 98), 90f, 4f),    // Corridor west wall strip
+                new WorldPropHang.KitSlot(new Vector3(3.8f, 0, 122), 270f, 4f),   // Corridor east wall strip
+                new WorldPropHang.KitSlot(new Vector3(-4.5f, 0, 24), 0f, 4f),     // Approach west shoulder
+                new WorldPropHang.KitSlot(new Vector3(4.5f, 0, 12), 180f, 4f),    // Approach east shoulder
+            });
         }
 
         /// Soft Apex → CityLivedIn_v012: Iron Rose Arms + Slither Surplus only, 3 ambient civs, silver stairs, cover, exactly 4 edge guns, X clamp ±12.
