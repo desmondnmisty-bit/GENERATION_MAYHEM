@@ -16,9 +16,13 @@ namespace GenerationMayhem.Art
         public const string ClawWalkerRedYellow = "GM_ClawWalker_RedYellow";
         public const string SkaterBlackRed = "GM_Skater_BlackRed";
 
-        // Full quad set. Leg_L and Leg_R are named slots only until those GLBs arrive.
         public static readonly string[] QuadCannonWalkerParts =
             { "Head", "Torso", "Arm_L", "Arm_R", "Leg_L", "Leg_R" };
+
+        // Full claw set. Filenames are the labels — FL/FR/BL/BR are not remapped.
+        // Claw_R and the four legs stay empty slots until those GLBs arrive.
+        public static readonly string[] ClawWalkerRedYellowParts =
+            { "Body", "Claw_L", "Claw_R", "Leg_FL", "Leg_FR", "Leg_BL", "Leg_BR" };
 
         public static readonly string[] SkaterBlackRedParts =
             { "Head", "Torso", "Arm_L", "Arm_R", "Leg_L", "Leg_R" };
@@ -28,6 +32,7 @@ namespace GenerationMayhem.Art
         public static string[] PartsFor(string enemyId)
         {
             if (enemyId == QuadCannonWalker) return QuadCannonWalkerParts;
+            if (enemyId == ClawWalkerRedYellow) return ClawWalkerRedYellowParts;
             if (enemyId == SkaterBlackRed) return SkaterBlackRedParts;
             return NoParts;
         }
