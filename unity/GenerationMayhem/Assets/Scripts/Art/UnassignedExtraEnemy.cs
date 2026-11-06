@@ -16,13 +16,21 @@ namespace GenerationMayhem.Art
         public const string ClawWalkerRedYellow = "GM_ClawWalker_RedYellow";
         public const string SkaterBlackRed = "GM_Skater_BlackRed";
 
+        // Full quad set. Leg_L and Leg_R are named slots only until those GLBs arrive.
+        public static readonly string[] QuadCannonWalkerParts =
+            { "Head", "Torso", "Arm_L", "Arm_R", "Leg_L", "Leg_R" };
+
         public static readonly string[] SkaterBlackRedParts =
             { "Head", "Torso", "Arm_L", "Arm_R", "Leg_L", "Leg_R" };
 
         static readonly string[] NoParts = new string[0];
 
-        public static string[] PartsFor(string enemyId) =>
-            enemyId == SkaterBlackRed ? SkaterBlackRedParts : NoParts;
+        public static string[] PartsFor(string enemyId)
+        {
+            if (enemyId == QuadCannonWalker) return QuadCannonWalkerParts;
+            if (enemyId == SkaterBlackRed) return SkaterBlackRedParts;
+            return NoParts;
+        }
 
         static GameObject Load(string path)
         {
@@ -34,9 +42,9 @@ namespace GenerationMayhem.Art
 
         /// <summary>
         /// Hang the playable mesh under Display. LOD0 is a byte-identical copy and is the
-        /// display fallback. When every split part for this id is present, parent each part
-        /// under Parts/{name} at local identity (authored model space) and hide Display.
-        /// Does not skin or assign an avatar. Ids with no part list keep the playable only.
+        /// display fallback. Parent each available part under Parts/{name} at local identity.
+        /// Hide Display only when every part in the full set loaded. A partial set stays
+        /// parented and inactive so the playable stays visible. Does not skin or assign an avatar.
         /// </summary>
         public static Transform Hang(Transform root, string enemyId)
         {
@@ -45,6 +53,7 @@ namespace GenerationMayhem.Art
             var partNames = PartsFor(enemyId);
             Transform partsRoot = null;
             var loaded = 0;
+            var missing = "";
             if (partNames.Length > 0)
             {
                 partsRoot = DirectChild(root, "Parts");
@@ -56,8 +65,12 @@ namespace GenerationMayhem.Art
                     slot.localRotation = Quaternion.identity;
                     slot.localScale = Vector3.one;
                     if (slot.childCount > 0) { loaded++; continue; }
-                    var partPrefab = Load(ResDir + enemyId + "/parts/" + enemyId + "_" + part);
-                    if (partPrefab == null) continue;
+                    var partPrefab = Resources.Load<GameObject>(ResDir + enemyId + "/parts/" + enemyId + "_" + part);
+                    if (partPrefab == null)
+                    {
+                        missing = missing.Length == 0 ? part : missing + ", " + part;
+                        continue;
+                    }
                     StripColliders(Object.Instantiate(partPrefab, slot, false));
                     loaded++;
                 }
@@ -81,6 +94,8 @@ namespace GenerationMayhem.Art
 
             if (partsComplete)
                 Debug.Log("[GM] unassigned extra part rig: " + enemyId + " (" + loaded + " parts, display hidden)");
+            else if (partNames.Length > 0)
+                Debug.LogWarning("[GM] unassigned extra " + enemyId + " display kept (" + loaded + "/" + partNames.Length + " parts, missing " + missing + ")");
             else if (prefab != null)
                 Debug.Log("[GM] unassigned extra hung: " + (playable != null ? enemyId : enemyId + "_LOD0"));
             return partsComplete ? partsRoot : display;

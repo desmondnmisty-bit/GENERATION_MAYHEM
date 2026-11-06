@@ -8,13 +8,13 @@ The playable GLB is the display mesh. `_LOD0` is a byte-identical copy of that p
 
 | Folder | Playable tris | Parts | LOD1–LOD3 |
 | --- | --- | --- | --- |
-| `GM_QuadCannon_Walker` | 60,000 | none yet | none yet |
+| `GM_QuadCannon_Walker` | 60,000 | Head, Torso, Arm_L, Arm_R parked; Leg_L and Leg_R not delivered | none yet |
 | `GM_ClawWalker_RedYellow` | 60,000 | none yet | none yet |
 | `GM_Skater_BlackRed` | 21,514 | Head, Torso, Arm_L, Arm_R, Leg_L, Leg_R | LOD1 10,757 · LOD2 5,378 · LOD3 2,151 | |
 
 Skater parts live in `GM_Skater_BlackRed/parts/`. Their triangle counts sum to the playable: Head 1,247, Torso 2,586, Arm_L 5,043, Arm_R 2,963, Leg_L 4,895, Leg_R 4,780. Arm_L is denser than Arm_R; that is left as delivered. Part nodes carry no transform, so identity slots reassemble the body. LOD1–LOD3 sit next to the playable and are not swapped in at runtime.
 
-Quad cannon and claw walker split parts are not in the repo. No stand-in part or LOD geometry was invented for them.
+Quad cannon parts that are in `GM_QuadCannon_Walker/parts/` are unskinned and carry no node transform: Head 3,997, Torso 21,526, Arm_L 10,289, Arm_R 10,018. The cannon is not its own part. Leg_L and Leg_R are named slots on the prefab only — those GLBs are not in the repo, so the part rig stays inactive and the playable display stays visible. No stand-in leg or LOD geometry was invented. Claw walker split parts are not in the repo either.
 
 Known mesh notes, left as delivered:
 
