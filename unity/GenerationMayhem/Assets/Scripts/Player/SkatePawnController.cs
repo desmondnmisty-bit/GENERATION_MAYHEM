@@ -1,7 +1,10 @@
 // Copyright Dark Logic Studios. Generation Mayhem.
-// Unity 6 LTS stub — Chaos wheel-skate locomotion feel (WASD + grounded skate).
+// Unity 6 LTS stub — Chaos wheel-skate locomotion feel (WASD / left stick + grounded skate).
+// Input: Input System actions via GMControls (Move / Brake / Jump-as-fast-gear), player slot 0.
+// Mapping + remap docs: Assets/Resources/Input/CONTROLS.md.
 
 using UnityEngine;
+using GenerationMayhem.Controls;
 
 namespace GenerationMayhem.Player
 {
@@ -35,6 +38,9 @@ namespace GenerationMayhem.Player
         [SerializeField] Transform leanRoot;
 
         CharacterController _cc;
+        GMControls _controls;
+        /// <summary>Player slot 0 (Vixen — the one human). Allies are AI and never touch this component.</summary>
+        GMControls Controls => _controls ?? (_controls = GMControls.For(0));
         Vector3 _velocity;
         float _verticalSpeed;
         float _currentLean;
@@ -58,8 +64,8 @@ namespace GenerationMayhem.Player
         /// <summary>Phase 0 weapon upgrades (Chaos Wheels pace). Multiplies top speed.</summary>
         public float UpgradeSpeedScale { get; set; } = 1f;
         public float MaxSpeed => maxSpeed * UpgradeSpeedScale;
-        /// <summary>PACE 1029: Shift = fast gear.</summary>
-        public bool Sprinting => !InputLocked && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
+        /// <summary>PACE 1029: Shift (pad: RT) = fast gear. Same action as jump — press hops, hold gears up.</summary>
+        public bool Sprinting => !InputLocked && Controls.Jump.IsPressed();
         float GearScale => Sprinting ? sprintMultiplier : 1f;
         public float Gravity => gravity;
         public float VerticalSpeed => _verticalSpeed;
@@ -118,12 +124,10 @@ namespace GenerationMayhem.Player
             ApplyLeanVisual(input.x, dt);
         }
 
-        static Vector2 ReadMoveInput()
+        Vector2 ReadMoveInput()
         {
-            // Legacy Input Manager — works without Input System asset wiring on first open.
-            float x = Input.GetAxisRaw("Horizontal");
-            float y = Input.GetAxisRaw("Vertical");
-            Vector2 v = new Vector2(x, y);
+            // Input System "Move" action — WASD / left stick / d-pad (GMControls.inputactions).
+            Vector2 v = Controls.Move.ReadValue<Vector2>();
             if (v.sqrMagnitude > 1f)
                 v.Normalize();
             return v;
@@ -155,8 +159,8 @@ namespace GenerationMayhem.Player
             }
             else
             {
-                // Coast / brake feel — Space = hard brake stub.
-                float decel = (!InputLocked && Input.GetKey(KeyCode.Space)) ? brakeDecel : coastDecel;
+                // Coast / brake feel — Space / A-Cross (hold) = hard brake stub.
+                float decel = (!InputLocked && Controls.Brake.IsPressed()) ? brakeDecel : coastDecel;
                 planar = Vector3.MoveTowards(planar, Vector3.zero, decel * TractionMultiplier * dt);
             }
 
