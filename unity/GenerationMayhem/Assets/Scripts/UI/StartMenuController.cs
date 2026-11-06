@@ -9,7 +9,7 @@ namespace GenerationMayhem.UI
     public class StartMenuController : MonoBehaviour
     {
         public string fightScene = GMFlow.FightScene;
-        Text _settingsToast; float _toastUntil; Image _bolt;
+        Image _bolt;
 
         void Start()
         {
@@ -32,11 +32,10 @@ namespace GenerationMayhem.UI
             if (GMSave.Exists && (GMSave.Round > 1 || GMSave.Scrap > 0))
                 GMUIKit.Button(col, "CONTINUE  R" + GMSave.Round, GMUIKit.Cyan, GMFlow.GoFight);
             GMUIKit.Button(col, "HOW TO PLAY", GMUIKit.Cyan, () => ShowHowTo(c));
-            GMUIKit.Button(col, "SETTINGS", new Color(0.7f, 0.7f, 0.75f), () => { _toastUntil = Time.unscaledTime + 1.5f; });
+            // SETTINGS = controls remapping (Input System rebinding, per player slot; P1 = slot 0).
+            GMUIKit.Button(col, "SETTINGS", new Color(0.7f, 0.7f, 0.75f), () =>
+                ControlsRemapOverlay.Open(c, 0, onClose: () => EventSystem.current?.SetSelectedGameObject(play.gameObject)));
             GMUIKit.Button(col, "QUIT", GMUIKit.Toxic, Quit);
-
-            var toast = GMUIKit.Rect(c, "Toast", new Vector2(0, 0.04f), new Vector2(1, 0.1f));
-            _settingsToast = GMUIKit.Label(toast, "SETTINGS — COMING SOON", 28, Color.white);
             EventSystem.current?.SetSelectedGameObject(play.gameObject);
             if (PlayerPrefs.GetInt(HowToSeenKey, 0) == 0) ShowHowTo(c);   // first launch
         }
@@ -54,11 +53,12 @@ namespace GenerationMayhem.UI
             GMUIKit.Panel(box, "Bolt", GMUIKit.Pink, new Vector2(0.05f, 0.83f), new Vector2(0.95f, 0.837f));
             GMUIKit.Label(GMUIKit.Rect(box, "H", new Vector2(0, 0.85f), new Vector2(1, 0.98f)), "HOW TO PLAY", 64, GMUIKit.Pink);
             GMUIKit.Label(GMUIKit.Rect(box, "Body", new Vector2(0.08f, 0.22f), new Vector2(0.92f, 0.82f)),
-                "MOVE  —  WASD / Left Stick      BRAKE  —  Space\n" +
-                "LIGHT ATTACK  —  K / Left Click\n" +
-                "HEAVY ATTACK  —  L / Right Click\n" +
-                "FINISHER / CHECK  —  E\n" +
-                "BLOCK  —  Q      LOCK-ON  —  Tab / Middle Click\n\n" +
+                "MOVE  —  WASD / Left Stick      BRAKE  —  Space / A-Cross (hold)\n" +
+                "LIGHT ATTACK  —  K / Left Click / X-Square\n" +
+                "HEAVY ATTACK  —  L / Right Click / Y-Triangle\n" +
+                "FINISHER / CHECK  —  E / B-Circle\n" +
+                "BLOCK  —  Q / LB      LOCK-ON  —  Tab / Middle Click / RB\n" +
+                "PAUSE  —  Esc / Start      REBIND IN SETTINGS OR PAUSE\n\n" +
                 "WIN OR LOSE, YOU EARN SCRAP.\nBETWEEN ROUNDS: ARM UP — pick an upgrade, CONFIRM, fight stronger.",
                 34, Color.white, TextAnchor.MiddleLeft, FontStyle.Normal);
             var btnR = GMUIKit.Rect(box, "OK", new Vector2(0.5f, 0.05f), new Vector2(0.5f, 0.05f), new Vector2(-260, 0), new Vector2(260, 92));
@@ -68,7 +68,6 @@ namespace GenerationMayhem.UI
 
         void Update()
         {
-            if (_settingsToast) _settingsToast.enabled = Time.unscaledTime < _toastUntil;
             if (_bolt) { var k = 0.6f + 0.4f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 7f)) * (Random.value > 0.03f ? 1f : 0.2f); _bolt.color = GMUIKit.Pink * k; }
         }
 
