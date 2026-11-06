@@ -74,10 +74,20 @@ namespace GenerationMayhem.Hyperdrive
                 var ww = g.who == HyperdriveAlly.Kailee ? WarRigWho.Kailee : g.who == HyperdriveAlly.Brianna ? WarRigWho.Brianna : WarRigWho.Payton;
                 WarRigTireStandIn.Apply(a.transform, ww); // Misty MODEST v002 lockstep
             }
-            // Pink Vipers per zone (Swarm / Cobra / Fang / Hive)
+            // Pink Vipers per zone (Swarm / Cobra / Fang / Hive). Capsule/sphere stays the body.
+            // The split GLB replaces that stand-in mesh when it loads (Hive = 56-part redsuit).
             var vipM = M("PinkViper", new Color(1f, 0.3f, 0.7f), 0.5f); var vroot = new GameObject("PinkVipers").transform;
             (ViperKindL2 k, Vector3 p)[] vs = { (ViperKindL2.Swarm, new Vector3(-3, 1, 28)), (ViperKindL2.Swarm, new Vector3(3, 1, 30)), (ViperKindL2.Cobra, new Vector3(-8, 1, 65)), (ViperKindL2.Fang, new Vector3(8, 1, 70)), (ViperKindL2.Swarm, new Vector3(0, 1, 110)), (ViperKindL2.Hive, new Vector3(0, 1.5f, 165)) };
-            foreach (var v in vs) { var e = GameObject.CreatePrimitive(v.k == ViperKindL2.Hive ? PrimitiveType.Sphere : PrimitiveType.Capsule); e.name = "Viper_" + v.k; e.tag = "Enemy"; e.transform.SetParent(vroot); e.transform.position = v.p; e.GetComponent<Renderer>().sharedMaterial = vipM; e.AddComponent<SoftViper>().kind = v.k; var h = e.AddComponent<SoftHP>(); h.maxHP = h.hp = v.k == ViperKindL2.Hive ? 400 : v.k == ViperKindL2.Cobra ? 120 : 50; if (v.k == ViperKindL2.Hive) e.transform.localScale = Vector3.one * 3; }
+            foreach (var v in vs)
+            {
+                var e = GameObject.CreatePrimitive(v.k == ViperKindL2.Hive ? PrimitiveType.Sphere : PrimitiveType.Capsule);
+                e.name = "Viper_" + v.k; e.tag = "Enemy"; e.transform.SetParent(vroot); e.transform.position = v.p;
+                e.GetComponent<Renderer>().sharedMaterial = vipM; e.AddComponent<SoftViper>().kind = v.k;
+                var h = e.AddComponent<SoftHP>(); h.maxHP = h.hp = v.k == ViperKindL2.Hive ? 400 : v.k == ViperKindL2.Cobra ? 120 : 50;
+                if (v.k == ViperKindL2.Hive) e.transform.localScale = Vector3.one * 3;
+                string parts = v.k == ViperKindL2.Swarm ? ViperMeshHang.Swarm : v.k == ViperKindL2.Cobra ? ViperMeshHang.Cobra : v.k == ViperKindL2.Fang ? ViperMeshHang.Fang : ViperMeshHang.Hive;
+                ViperMeshHang.TryHang(e.transform, parts, v.k == ViperKindL2.Hive ? 3f : 2f);
+            }
             frenzy.Bind(vhp);
             var light = Object.FindFirstObjectByType<Light>(); if (light) light.color = new Color(0.7f, 0.75f, 1f);
             RenderSettings.ambientLight = new Color(0.25f, 0.2f, 0.35f);
