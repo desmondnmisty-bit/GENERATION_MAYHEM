@@ -20,7 +20,6 @@ namespace GenerationMayhem.Art
             { "Head", "Torso", "Arm_L", "Arm_R", "Leg_L", "Leg_R" };
 
         // Full claw set. Filenames are the labels — FL/FR/BL/BR are not remapped.
-        // Leg_FR stays an empty slot until that GLB arrives.
         public static readonly string[] ClawWalkerRedYellowParts =
             { "Body", "Claw_L", "Claw_R", "Leg_FL", "Leg_FR", "Leg_BL", "Leg_BR" };
 

@@ -9,14 +9,14 @@ The playable GLB is the display mesh. `_LOD0` is a byte-identical copy of that p
 | Folder | Playable tris | Parts | LOD1–LOD3 |
 | --- | --- | --- | --- |
 | `GM_QuadCannon_Walker` | 60,000 | Head, Torso, Arm_L, Arm_R, Leg_L, Leg_R | LOD1 30,000 · LOD2 14,999 · LOD3 5,999 |
-| `GM_ClawWalker_RedYellow` | 60,000 | Body, Claw_L, Claw_R, Leg_FL, Leg_BL, Leg_BR parked; Leg_FR not delivered | none yet |
+| `GM_ClawWalker_RedYellow` | 60,000 | Body, Claw_L, Claw_R, Leg_FL, Leg_FR, Leg_BL, Leg_BR | LOD1 30,000 · LOD2 15,000 · LOD3 6,000 |
 | `GM_Skater_BlackRed` | 21,514 | Head, Torso, Arm_L, Arm_R, Leg_L, Leg_R | LOD1 10,757 · LOD2 5,378 · LOD3 2,151 | |
 
 Skater parts live in `GM_Skater_BlackRed/parts/`. Their triangle counts sum to the playable: Head 1,247, Torso 2,586, Arm_L 5,043, Arm_R 2,963, Leg_L 4,895, Leg_R 4,780. Arm_L is denser than Arm_R; that is left as delivered. Part nodes carry no transform, so identity slots reassemble the body. LOD1–LOD3 sit next to the playable and are not swapped in at runtime.
 
 Quad cannon parts in `GM_QuadCannon_Walker/parts/` are unskinned and carry no node transform. They sum to the playable: Head 3,997, Torso 21,526, Arm_L 10,289, Arm_R 10,018, Leg_L 6,803, Leg_R 7,367. The cannon is not its own part. The leg meshes sit high and the arm meshes reach the ground; that biped cut is left as delivered. All six parts load under `Parts/{name}` at local identity, and the playable display is hidden. LOD1 (30,000 tris), LOD2 (14,999), and LOD3 (5,999) sit next to the playable and are not swapped in.
 
-Claw walker parts in `GM_ClawWalker_RedYellow/parts/` are unskinned and carry no node transform: Body 17,923, Claw_L 8,406, Claw_R 8,488, Leg_FL 5,181, Leg_BL 6,871, Leg_BR 4,269. They parent under `Parts/{name}` at local identity. `Leg_FR` is still an empty slot. Those labels are the filenames; nothing was remapped. Leg_BR is the small leg and Leg_BL reaches much farther; that uneven cut is left as delivered. The set is seven parts, so the partial rig stays inactive and the playable display stays visible. Claw LOD1–LOD3 are not in the repo. No stand-in geometry was invented for the missing files.
+Claw walker parts in `GM_ClawWalker_RedYellow/parts/` are unskinned and carry no node transform. They sum to the playable: Body 17,923, Claw_L 8,406, Claw_R 8,488, Leg_FL 5,181, Leg_FR 8,862, Leg_BL 6,871, Leg_BR 4,269. They parent under `Parts/{name}` at local identity, and the playable display is hidden. Those labels are the filenames; nothing was remapped. Leg_FR spans nearly the whole body and Leg_BR is the small leg; that uneven cut is left as delivered. LOD1 (30,000 tris), LOD2 (15,000), and LOD3 (6,000) sit next to the playable and are not swapped in.
 
 Known mesh notes, left as delivered:
 
