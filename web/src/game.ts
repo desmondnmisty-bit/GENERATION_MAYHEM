@@ -783,7 +783,15 @@ export class Game {
       for (const b of this.world.colliders) { if (b.ride !== 'rail' || !b.active || v.pos.z < b.minZ - 1.5 || v.pos.z > b.maxZ) continue; const cx = (b.minX + b.maxX) / 2, d = Math.abs(cx - v.pos.x); if (d < bd && v.y > b.h - 0.4) { bd = d; best = cx; } }
       if (best !== null) v.pos.x += (best - v.pos.x) * Math.min(1, dt * 6);
     }
-    if (!sling && this.sling.phase !== 'land') v.integrate(dt, this.world.colliders);
+    if (!sling && this.sling.phase !== 'land') {
+      // Driving into clutter is the verb: disable its collider BEFORE movement resolves.
+      for (const hit of this.world.smashHyperdrive(v.pos, v.vel, dt, v.y, v.radius)) {
+        this.trick('CLUTTER SMASH', 500); // chain rewards: 500 → 1000 → ... → 2500 each
+        this.particles.burst(hit, 28, COL.org, 5, 0.24, 0.7, -12, 1);
+        this.trans.ring(hit, 0xffb070, 0.3, 2.2, 0.35);
+      }
+      v.integrate(dt, this.world.colliders);
+    }
     // GRIND (Soft Hyperdrive rails): lock to the bar, keep speed up, sparks
     if (v.grindBox && v.grounded) {
       const gb = v.grindBox, cx = (gb.minX + gb.maxX) / 2; v.pos.x += (cx - v.pos.x) * Math.min(1, dt * 12);
@@ -2329,7 +2337,7 @@ export class Game {
     (this.hud['ab-cone'].querySelector('i') as HTMLElement).style.transform = `scaleX(${(this.p.coneCd / 1.5).toFixed(2)})`;
     this.setT('wave-label', (this.level === 2 ? 'L2 · ' : '') + (this.gateOpen ? 'EXTRACT' : `WAVE ${this.wave + 1}/4`));
     const alive = this.enemies.filter((e) => e.state !== 'dead').length;
-    this.setT('enemy-count', this.waveActive ? `HOSTILES ${alive}${this.stats.combo > 2 ? `  ·  COMBO x${this.stats.combo}` : ''}${this.trickScore ? `  ·  TRICKS ${this.trickScore}` : ''}` : this.waveCleared ? 'ALL CLEAR' : 'STAND BY');
+    this.setT('enemy-count', (this.waveActive ? `HOSTILES ${alive}${this.stats.combo > 2 ? `  ·  COMBO x${this.stats.combo}` : ''}` : this.waveCleared ? 'ALL CLEAR' : 'STAND BY') + (this.trickScore ? `  ·  TRICKS ${this.trickScore}` : ''));
     const boss = this.enemies.find((e) => e.def.kind === 'falcon' && e.state !== 'dead');
     if (boss) this.setW('hp-boss', boss.hp / boss.maxHp);
   }

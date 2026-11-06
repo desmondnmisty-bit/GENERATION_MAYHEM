@@ -1,6 +1,7 @@
 import medicBotUrl from './assets/models/medic_bot.glb?url';
 import dockNightSkyUrl from './assets/sky/GM_Sky_DockNight_Equirect_PoleFade.png';
 import * as THREE from 'three';
+import { sweepClutter } from './hyperdriveSmash';
 import { Assets, dockPiece } from './assets';
 
 /** Live playable X — Dock widened (Misty 1104); HyperDrive clamps to greybox until Soft space-age redo. Mutable so setArena swaps them (ES live bindings). */
@@ -106,6 +107,7 @@ export class World {
     for (const b of this.pocketBoxes) b.active = !hd;
     for (const b of this.dockColliders) b.active = !hd;
     for (const b of this.hdColliders) b.active = hd;
+    this.syncSmashables(hd);
     this.hdWalk.visible = hd;
     for (const p of this.puddles) { p.on = false; p.warn = false; }
     if (hd) {} else {
@@ -118,10 +120,34 @@ export class World {
     if (this.arena !== 'hyperdrive') return;
     this.hdWalk.visible = !on; if (this.hdGroup) this.hdGroup.visible = !on;
     for (const b of this.hdColliders) b.active = !on;
+    this.syncSmashables(!on);
   }
   private dockDress: THREE.Object3D[] = [];
   private dockColliders: Box[] = [];
   private hdColliders: Box[] = [];
+  private hdSmashables: { box: Box; meshes: THREE.Object3D[]; broken: boolean }[] = [];
+
+  /** Player-only swept body contact, before solid resolution. Tops/ramps stay rideable. */
+  smashHyperdrive(pos: THREE.Vector3, velocity: THREE.Vector3, dt: number, y: number, radius: number) {
+    const hits: THREE.Vector3[] = [];
+    if (this.arena !== 'hyperdrive' || !this.hdWalk.visible) return hits;
+    const end = { x: pos.x + velocity.x * dt, z: pos.z + velocity.z * dt };
+    if (Math.hypot(end.x - pos.x, end.z - pos.z) < 1e-6) return hits;
+    for (const s of this.hdSmashables) {
+      const b = s.box;
+      if (s.broken || !b.active || y >= b.h - (b.ride === 'top' ? 0.35 : 0)) continue;
+      if (!sweepClutter(pos, end, b, radius)) continue;
+      s.broken = true; b.active = false;
+      for (const m of s.meshes) m.visible = false;
+      hits.push(new THREE.Vector3((b.minX + b.maxX) / 2, b.h / 2, (b.minZ + b.maxZ) / 2));
+    }
+    return hits;
+  }
+
+  private syncSmashables(active: boolean) {
+    for (const s of this.hdSmashables) s.box.active = active && !s.broken;
+  }
+
   private hdWalk = new THREE.Group();
   hdRails: Box[] = [];
   private hdSkins: { mesh: THREE.Mesh; key: string; sx: number; sz: number; h: number; ry: number }[] = [];
@@ -162,6 +188,12 @@ export class World {
       const b: Box = { minX: cx - ex, maxX: cx + ex, minZ: cz - ez, maxZ: cz + ez, h, active: false, ride }; this.colliders.push(b); this.hdColliders.push(b);
       return b;
     };
+    // Register only explicit floor clutter; structural walls, ramps, decks and funboxes are never smashable.
+    const smashPiece = (...args: Parameters<typeof piece>) => {
+      const start = g.children.length, box = piece(...args);
+      this.hdSmashables.push({ box, meshes: g.children.slice(start), broken: false });
+      return box;
+    };
     // RIDEABLES: kicker = wedge rising north (+z), launch off the lip; rail = thin grind bar; box = funbox/ledge you land on top of.
     const wedge = (cx: number, cz: number, w: number, len: number, h: number, dir: 1 | -1 = 1) => {
       const geo = new THREE.BufferGeometry(); const x0 = -w / 2, x1 = w / 2, z0 = -len / 2, z1 = len / 2;
@@ -185,18 +217,18 @@ export class World {
     for (let z = -10; z < 182; z += 8) { piece(conc, X_MIN - 1, z + 4, 2, 8, 7, 0, amber); piece(conc, X_EDGE + 0.9, z + 4, 1.6, 8, 7, 0, amber); }
     piece(conc, 0, -11, 40, 2.6, 7); piece(conc, 0, Z_END + 1.5, 40, 2.6, 7);
     // APPROACH (-8..40): sandbag nests + crates, zig-zag line
-    const bags: [number, number, number][] = [[-7, 8, 0], [-9, 35, 0]];
-    for (const [x, z, r] of bags) piece(sand, x, z, 5, 1.2, 0.9, r, undefined, 'DECK_SandbagLip', 'top');
-    // Movement pass: centre spawn funbox + both ramps removed, including their colliders.
+    const bags: [number, number, number][] = [[-7, 8, 0], [7, 16, 0], [-4, 24, 0.3], [8, 30, -0.3], [-9, 35, 0]];
+    for (const [x, z, r] of bags) smashPiece(sand, x, z, 5, 1.2, 0.9, r, undefined, 'DECK_SandbagLip', 'top');
+    wedge(0, 4, 3, 4, 1.1); piece(conc, 0, 8.5, 3, 5, 1.1, 0, amber, 'DECK_FunBox', 'top'); wedge(0, 13, 3, 4, 1.1, -1);
     rail(-3, 18, 32); rail(3.5, 40, 47); wedge(3.5, 37, 2.4, 3.5, 0.8);
-    for (const [x, z] of [[-11, 12], [10.8, 22]]) piece(olive, x, z, 1.6, 1.6, 1.5, 0.2);
+    for (const [x, z] of [[-11, 12], [11, 4], [10.8, 22], [-11, 28], [7, 33]]) smashPiece(olive, x, z, 1.6, 1.6, 1.5, 0.2);
     // RING HALL (42..86): inner ring wall arcs around a central core pillar, console banks on the outer ring
     const rc = 64;
     piece(steel, 0, rc, 6, 6, 6, Math.PI / 4, pink, 'RING_Facade');
     // skateable ring path: funbox ledges ride the ring E/W of the core, kicker in + out through the N/S openings
     piece(conc, -6.2, rc, 2.2, 7, 0.9, 0, amber, 'DECK_FunBox', 'top'); piece(conc, 6.2, rc, 2.2, 7, 0.9, 0, amber, 'DECK_FunBox', 'top');
-    wedge(-6.2, rc - 4.75, 2.2, 1.5, 0.9); wedge(6.2, rc - 4.75, 2.2, 1.5, 0.9); // Retain one entry ramp per ring ledge.
-    rail(-7, 44, 53); rail(7, 75, 85);
+    wedge(-6.2, rc - 4.75, 2.2, 1.5, 0.9); wedge(6.2, rc - 4.75, 2.2, 1.5, 0.9); wedge(-6.2, rc + 4.75, 2.2, 1.5, 0.9, -1); wedge(6.2, rc + 4.75, 2.2, 1.5, 0.9, -1);
+    wedge(0, 51, 3, 3.5, 0.9); rail(-7, 44, 53); rail(7, 75, 85);
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2; if (i === 0 || i === 5) continue; // N/S openings = the skate line
       piece(conc, Math.sin(a) * 9.5, rc + Math.cos(a) * 9.5, 5.2, 0.9, 2.4, a, amber, 'RH_OuterWall');
@@ -204,45 +236,44 @@ export class World {
     for (const [x, z] of [[-11.5, 50], [11.5, 50], [-11.5, 78], [11.5, 78]]) piece(olive, x, z, 1.4, 4, 1.2, 0, amber);
     // CORRIDOR (88..132): structural ribs pinch the lane, debris scrap in the gaps
     for (let z = 94; z < 132; z += 9) { piece(steel, -10.5, z, 5, 1.2, 5.5, 0, pink); piece(steel, 10.5, z, 5, 1.2, 5.5, 0, pink); }
-    for (const [x, z] of [[-6, 116], [5, 125]]) piece(olive, x, z, 2.2, 1.4, 0.9, 0.5, undefined, 'DECK_FunBox', 'top');
+    for (const [x, z] of [[-5, 99], [5, 108], [-6, 116], [5, 125]]) piece(olive, x, z, 2.2, 1.4, 0.9, 0.5, undefined, 'DECK_FunBox', 'top');
     rail(0, 92, 120, 0.8); wedge(0, 90.5, 2.2, 3, 0.85); wedge(2.5, 128, 3, 4, 1.2);
     // COCKPIT CORE (134..176): console ring round the Hive with four gaps + cockpit walls
     const cc = 156;
     for (let i = 0; i < 12; i++) { if (i % 3 === 0) continue; const a = (i / 12) * Math.PI * 2; piece(steel, Math.sin(a) * 7, cc + Math.cos(a) * 7, 3.4, 0.8, 1.0, a, amber, 'DECK_FunBox', 'top'); }
     for (const [x, z] of [[-9, 140], [9, 140], [-10, 170], [10, 170]]) piece(conc, x, z, 4, 1.2, 3, 0, pink, 'RH_OuterWall');
-    rail(-4, 138, 146, 0.8); rail(4, 166, 174, 0.8);
+    rail(-4, 138, 146, 0.8); rail(4, 166, 174, 0.8); wedge(0, 143, 3, 3.5, 1.0);
     // APEX OUTSIDE (Misty 1104 v004): side decks + ramps + cover + rails in the widened |x| 12..17 band — lateral/vertical lines, not a funnel
     const silver = new THREE.MeshStandardMaterial({ color: 0xb8c4d8, roughness: 0.35, metalness: 0.85 });
     const cyan = new THREE.MeshStandardMaterial({ color: 0x081820, emissive: 0x2ae8ff, emissiveIntensity: 2.2 });
     const purp = new THREE.MeshStandardMaterial({ color: 0x140822, emissive: 0x9a3aff, emissiveIntensity: 2.0 });
     for (const sx of [-1, 1]) {
       const x = sx * 14.8;
-      // One entry ramp per raised deck; silver lane-side stairs remain unchanged.
+      // raised side decks (rideable tops) with ramps up/down each end
       for (const [z0, z1, h] of [[6, 30, 1.6], [48, 80, 2.0], [96, 126, 1.6], [140, 168, 2.2]] as const) {
         piece(silver, x, (z0 + z1) / 2, 3.6, z1 - z0, h, 0, sx < 0 ? cyan : purp, undefined, 'top');
-        wedge(x, z0 - 2, 3.6, 4, h);
+        wedge(x, z0 - 2, 3.6, 4, h); wedge(x, z1 + 2, 3.6, 4, h, -1);
         rail(x - sx * 1.9, z0 + 1, z1 - 1, h + 0.8);
       }
       // cover crates / short walls on the floor between decks and lane
-      for (const z of [88]) { piece(olive, sx * 13.5, z, 2.4, 2.4, 1.3, 0.3 * sx, cyan); piece(conc, sx * 11, z + 3, 0.6, 4, 1.6, 0, purp); }
+      for (const z of [38, 88, 134]) { smashPiece(olive, sx * 13.5, z, 2.4, 2.4, 1.3, 0.3 * sx, cyan); smashPiece(conc, sx * 11, z + 3, 0.6, 4, 1.6, 0, purp); }
       // vertical: tall perch platforms with kickers up
       for (const z of [20, 64, 112, 156]) { piece(steel, sx * 15.5, z, 2.6, 4, 3.2, 0, cyan, undefined, 'top'); }
     }
-    // COVER PASS movement thinning: sparse edge atmosphere, fewer lane pinches.
-    // Removed placements skip piece/wedge creation entirely: meshes and colliders stay in sync.
+    // COVER PASS (Misty lock 1104): crates / barriers / low walls / pipes / debris — duck+weave spawn→doorway, staggered, lane gaps kept
     const crate = new THREE.MeshStandardMaterial({ color: 0x6a5a3a, roughness: 0.9 });
     const pipeMat = new THREE.MeshStandardMaterial({ color: 0x8a909a, roughness: 0.4, metalness: 0.8 });
-    const pipe = (cx: number, cz: number, len: number, ry: number) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), pipeMat); m.rotation.z = Math.PI / 2; m.rotation.y = ry; m.position.set(cx, 0.45, cz); g.add(m); piece(pipeMat, cx, cz, len, 0.9, 0.9, ry).h = 0.9; m.castShadow = true; };
+    const pipe = (cx: number, cz: number, len: number, ry: number) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, len, 10), pipeMat); m.rotation.z = Math.PI / 2; m.rotation.y = ry; m.position.set(cx, 0.45, cz); g.add(m); smashPiece(pipeMat, cx, cz, len, 0.9, 0.9, ry).h = 0.9; this.hdSmashables[this.hdSmashables.length - 1].meshes.push(m); m.castShadow = true; };
     // crates (1.4 high, duckable)
-    for (const [x, z, r] of [[9, 92, 0.4], [9.5, 148, 0], [-9.5, 160, 0.25]] as const) piece(crate, x, z, 1.5, 1.5, 1.4, r, amber);
+    for (const [x, z, r] of [[5, 42, 0.2], [-4.5, 56, -0.3], [9, 92, 0.4], [-8.5, 104, 0.1], [7.5, 118, -0.2], [-3, 132, 0.3], [9.5, 148, 0], [-9.5, 160, 0.25]] as const) smashPiece(crate, x, z, 1.5, 1.5, 1.4, r, amber);
     // jersey barriers (long low, angled → weave lines)
-    for (const [x, z, r] of [[-2.5, 38, 0.5], [-5, 150, 0.35]] as const) piece(conc, x, z, 3.6, 0.7, 1.1, r, cyan);
+    for (const [x, z, r] of [[-2.5, 38, 0.5], [3, 86, -0.45], [-3.5, 112, 0.4], [3.5, 137, -0.5], [-5, 150, 0.35]] as const) smashPiece(conc, x, z, 3.6, 0.7, 1.1, r, cyan);
     // low walls (waist cover)
-    for (const [x, z] of [[-11.5, 18], [11.5, 44], [-6.5, 174], [6.5, 174]] as const) piece(conc, x, z, 3, 0.6, 1.2, 0, purp);
+    for (const [x, z] of [[-11.5, 18], [11.5, 44], [-11.5, 92], [11.5, 104], [-6.5, 174], [6.5, 174]] as const) smashPiece(conc, x, z, 3, 0.6, 1.2, 0, purp);
     // pipe runs (crossing, ollie-able)
-    pipe(-7, 46, 4, 0.3); pipe(6, 164, 3.5, -0.2);
+    pipe(-7, 46, 4, 0.3); pipe(7.5, 98, 4, -0.3); pipe(-7, 128, 4, 0.2); pipe(6, 164, 3.5, -0.2);
     // debris scatter (small chunks, readable)
-    for (const [x, z, sz] of [[-6, 84, 0.9], [-4, 168, 0.7]] as const) piece(olive, x, z, sz * 1.3, sz, sz * 0.7, x * 0.3);
+    for (const [x, z, sz] of [[2, 26, 0.8], [-6, 84, 0.9], [4, 102, 0.7], [-2, 122, 0.8], [6.5, 130, 0.9], [-4, 168, 0.7]] as const) smashPiece(olive, x, z, sz * 1.3, sz, sz * 0.7, x * 0.3);
     // doorway (elevator) frame at the far end — the Apex objective
     piece(silver, -3.4, 177.2, 1.2, 1.2, 6, 0, cyan); piece(silver, 3.4, 177.2, 1.2, 1.2, 6, 0, cyan);
     const lintel = new THREE.Mesh(new THREE.BoxGeometry(8, 1, 1.2), purp); lintel.position.set(0, 6.4, 177.2); g.add(lintel);
@@ -921,6 +952,8 @@ export class World {
   }
 
   reset() {
+    for (const s of this.hdSmashables) { s.broken = false; for (const m of s.meshes) m.visible = true; }
+    this.syncSmashables(this.arena === 'hyperdrive' && this.hdWalk.visible);
     for (const b of this.barriers) { b.open = 0; b.box.active = true; b.mesh.visible = true; b.mat.opacity = 0.9; }
     this.setGateActive(false);
   }

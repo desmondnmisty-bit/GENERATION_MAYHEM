@@ -48,19 +48,18 @@ namespace GenerationMayhem.Hyperdrive
                 var lb = lip.AddComponent<BoxCollider>(); lb.isTrigger = true; lb.size = new Vector3(w, 1.4f, 0.6f); lip.AddComponent<KickerLipTrigger>();
             }
             void Funbox(float x, float z, float w, float l, float h) => Cube($"Funbox_{x}_{z}", rides, new Vector3(x, h / 2, z), new Vector3(w, h, l), boxM);
-            // Movement thinning mirrors web: clear approach, ring-entry and cockpit-centre ramps.
-            // Unity has a simpler pre-existing layout; retain its other ramps, rails and platforms.
-            Rail(-3, 18, 32); Rail(3.5f, 40, 47); Kicker(3.5f, 37, 2.4f, 3.5f, 0.8f);
-            Funbox(0, 60, 6, 6, 0.6f); Rail(-7, 44, 53); Rail(7, 75, 85);
+            // same placements as web world.ts Soft rideables
+            Kicker(0, 10, 3, 3.5f, 0.8f); Rail(-3, 18, 32); Rail(3.5f, 40, 47); Kicker(3.5f, 37, 2.4f, 3.5f, 0.8f);
+            Funbox(0, 60, 6, 6, 0.6f); Kicker(0, 51, 3, 3.5f, 0.9f); Rail(-7, 44, 53); Rail(7, 75, 85);
             Rail(0, 92, 120, 0.8f); Kicker(0, 90.5f, 2.2f, 3, 0.85f); Kicker(2.5f, 128, 3, 4, 1.2f);
-            Rail(-4, 138, 146, 0.8f); Rail(4, 166, 174, 0.8f); Funbox(0, 155, 8, 5, 0.7f);
+            Rail(-4, 138, 146, 0.8f); Rail(4, 166, 174, 0.8f); Kicker(0, 143, 3, 3.5f, 1.0f); Funbox(0, 155, 8, 5, 0.7f);
 
             // systems
             var sys = new GameObject("_HyperdriveSystems"); var frenzy = sys.AddComponent<MomsFrenzy>(); sys.AddComponent<HyperdriveHUD>(); sys.AddComponent<HyperdriveIntro>();
             // Vixen (player) — reuses Dock skate controller
             var player = new GameObject("SkatePawn"); player.tag = "SkatePawn"; player.transform.position = new Vector3(0, 0.05f, 3);
             var cc = player.AddComponent<CharacterController>(); cc.height = 1.8f; cc.radius = 0.4f; cc.center = new Vector3(0, 0.9f, 0); cc.slopeLimit = 50f; cc.stepOffset = 0.3f;
-            player.AddComponent<SkatePawnController>(); var trav = player.AddComponent<SkaterTraversal>(); player.AddComponent<FighterIdentity>().role = FighterRole.Hero;
+            player.AddComponent<SkatePawnController>(); player.AddComponent<HyperdriveSmashDriver>(); var trav = player.AddComponent<SkaterTraversal>(); player.AddComponent<FighterIdentity>().role = FighterRole.Hero;
             var vhp = player.AddComponent<SoftHP>(); vhp.maxHP = vhp.hp = 150; player.AddComponent<SoftTrickTracker>();
             var vm = GameObject.CreatePrimitive(PrimitiveType.Capsule); vm.name = "MeshRoot"; Object.DestroyImmediate(vm.GetComponent<Collider>()); vm.transform.SetParent(player.transform, false); vm.transform.localPosition = new Vector3(0, 0.9f, 0); vm.GetComponent<Renderer>().sharedMaterial = M("Vixen", new Color(0.85f, 0.1f, 0.1f));
             WarRigTireStandIn.Apply(player.transform, WarRigWho.Vixen); // Misty MODEST v002 lockstep
@@ -102,7 +101,7 @@ namespace GenerationMayhem.Hyperdrive
             var silver = M("HD_SilverStairs", new Color(0.82f, 0.84f, 0.88f));
             for (int i = 0; i < 6; i++) Cube("SilverStair_" + i, apex, new Vector3(0, 0.15f + i * 0.3f, 209 + i * 0.6f), new Vector3(6, 0.3f + i * 0.6f, 0.6f), silver);
             var coverM = M("HD_Cover", new Color(0.4f, 0.4f, 0.42f));
-            foreach (var p in new[] { new Vector3(5, 0.6f, 190), new Vector3(-6, 0.6f, 200) }) Cube("Cover", apex, p, new Vector3(3, 1.2f, 0.8f), coverM);
+            foreach (var p in new[] { new Vector3(-4, 0.6f, 186), new Vector3(5, 0.6f, 190), new Vector3(-6, 0.6f, 200), new Vector3(3, 0.6f, 202) }) { var cover = Cube("Cover", apex, p, new Vector3(3, 1.2f, 0.8f), coverM); cover.AddComponent<HyperdriveSmashable>(); }
             var gunM = M("HD_EdgeGun", new Color(0.15f, 0.15f, 0.15f));
             foreach (var p in new[] { new Vector3(-11, 1.2f, 184), new Vector3(11, 1.2f, 184), new Vector3(-11, 1.2f, 212), new Vector3(11, 1.2f, 212) }) // exactly 4
             { var g = Cube("EdgeGun", apex, p, new Vector3(0.6f, 0.6f, 1.6f), gunM); g.transform.LookAt(new Vector3(0, 1.2f, (z0 + z1) / 2)); }
