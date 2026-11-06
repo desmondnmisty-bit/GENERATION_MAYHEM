@@ -1,4 +1,4 @@
-// Gold wooden loot chest (Misty 2026-11-06). One GLB: ROOT plus 85 tripo_part_N meshes.
+// Loot chests (Misty 2026-11-06): gold wood (85 tripo_part_N) and lava glyph (one mesh).
 // Not a character and not a Viper. Unskinned, no animations. Display the imported hierarchy as-is.
 // Same glTFast Resources.Load path as the war rigs. Imported colliders are stripped.
 // The root keeps one box, then uses the existing breakable:
@@ -13,15 +13,24 @@ namespace GenerationMayhem.Art
 {
     public static class LootChestHang
     {
-        public const string ResourcePath = "Props/Loot/GM_Chest_WoodGold/GM_Chest_WoodGold_raw";
-        public const string ObjectName = "LootChest_WoodGold";
+        public const string WoodPath = "Props/Loot/GM_Chest_WoodGold/GM_Chest_WoodGold_raw";
+        public const string WoodName = "LootChest_WoodGold";
+        public const string LavaPath = "Props/Loot/GM_Chest_LavaGlyph/GM_Chest_LavaGlyph_raw";
+        public const string LavaName = "LootChest_LavaGlyph";
 
-        // Web cover-pass duck crate in Ring Hall (world.ts smashPiece crate at x 5, z 42, yaw 0.2).
+        // Kept so existing call sites still name the gold chest.
+        public const string ResourcePath = WoodPath;
+        public const string ObjectName = WoodName;
+
+        // Web cover-pass duck crates (world.ts). Gold at (5, 42), lava at the next crate (−4.5, 56).
         public static readonly Vector3 HyperdriveFloor = new Vector3(5f, 0f, 42f);
         public const float HyperdriveYawDeg = 0.2f * Mathf.Rad2Deg;
+        public static readonly Vector3 LavaHyperdriveFloor = new Vector3(-4.5f, 0f, 56f);
+        public const float LavaHyperdriveYawDeg = -0.3f * Mathf.Rad2Deg;
 
-        // Beside the south-lane breakable crates in the Dock greybox.
+        // Beside the south-lane breakable crates in the Dock greybox. Lava continues the stagger.
         public static readonly Vector3 DockFloor = new Vector3(-15.5f, 0f, 3.5f);
+        public static readonly Vector3 LavaDockFloor = new Vector3(-14.5f, 0f, 4.5f);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -33,22 +42,31 @@ namespace GenerationMayhem.Art
         static void PlaceIfDock(Scene scene)
         {
             if (scene.name != "Dockyard" && scene.name != "CityBlock_Slice") return;
-            if (GameObject.Find(ObjectName) != null) return;
             var crates = GameObject.Find("Breakables_Crates");
-            Hang(crates != null ? crates.transform : null, DockFloor, 0f, 1.2f, hyperdriveSmash: false);
+            PlaceAll(crates != null ? crates.transform : null, hyperdriveSmash: false);
         }
 
-        /// <summary>Hang the chest on the floor. Returns null if the GLB cannot load.</summary>
-        public static Transform Hang(Transform parent, Vector3 floorPos, float yawDeg, float targetHeight, bool hyperdriveSmash)
+        /// <summary>Gold wooden chest and lava-glyph chest. Skips either one already in the scene.</summary>
+        public static void PlaceAll(Transform parent, bool hyperdriveSmash)
         {
-            var prefab = Resources.Load<GameObject>(ResourcePath);
+            var yaw = hyperdriveSmash ? HyperdriveYawDeg : 0f;
+            var lavaYaw = hyperdriveSmash ? LavaHyperdriveYawDeg : 0f;
+            Hang(WoodPath, WoodName, parent, hyperdriveSmash ? HyperdriveFloor : DockFloor, yaw, 1.2f, hyperdriveSmash);
+            Hang(LavaPath, LavaName, parent, hyperdriveSmash ? LavaHyperdriveFloor : LavaDockFloor, lavaYaw, 1.2f, hyperdriveSmash);
+        }
+
+        /// <summary>Hang one chest on the floor. Returns null if that chest is already present or the GLB cannot load.</summary>
+        public static Transform Hang(string resourcePath, string objectName, Transform parent, Vector3 floorPos, float yawDeg, float targetHeight, bool hyperdriveSmash)
+        {
+            if (GameObject.Find(objectName) != null) return GameObject.Find(objectName).transform;
+            var prefab = Resources.Load<GameObject>(resourcePath);
             if (prefab == null)
             {
-                Debug.LogError("[GM] LOOT CHEST FAILED to load Resources/" + ResourcePath + " (glTFast installed?) — no chest placed");
+                Debug.LogError("[GM] LOOT CHEST FAILED to load Resources/" + resourcePath + " (glTFast installed?) — no chest placed");
                 return null;
             }
 
-            var root = new GameObject(ObjectName);
+            var root = new GameObject(objectName);
             if (parent != null) root.transform.SetParent(parent, false);
             root.transform.position = floorPos;
             root.transform.rotation = Quaternion.Euler(0f, yawDeg, 0f);
@@ -70,7 +88,7 @@ namespace GenerationMayhem.Art
                 breakable.onBroken.AddListener(() => { if (visual != null) visual.SetActive(false); });
             }
 
-            Debug.Log("[GM] loot chest hung: " + ObjectName + " at " + floorPos);
+            Debug.Log("[GM] loot chest hung: " + objectName + " at " + floorPos);
             return root.transform;
         }
 

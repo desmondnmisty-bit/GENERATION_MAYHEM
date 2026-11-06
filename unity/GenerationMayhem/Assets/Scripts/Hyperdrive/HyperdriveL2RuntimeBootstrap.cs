@@ -10,8 +10,7 @@ namespace GenerationMayhem.Hyperdrive
         {
             if (GameObject.Find("Hyperdrive_L2") != null)
             {
-                if (GameObject.Find(LootChestHang.ObjectName) == null)
-                    LootChestHang.Hang(GameObject.Find("Hyperdrive_L2").transform, LootChestHang.HyperdriveFloor, LootChestHang.HyperdriveYawDeg, 1.2f, true);
+                LootChestHang.PlaceAll(GameObject.Find("Hyperdrive_L2").transform, true);
                 return; // baked scene already present
             }
             RenderSettings.ambientLight = new Color(0.25f, 0.2f, 0.35f);

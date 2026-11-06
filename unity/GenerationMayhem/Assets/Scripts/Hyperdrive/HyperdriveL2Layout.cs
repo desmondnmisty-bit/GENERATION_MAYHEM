@@ -112,8 +112,8 @@ namespace GenerationMayhem.Hyperdrive
             for (int i = 0; i < 6; i++) Cube("SilverStair_" + i, apex, new Vector3(0, 0.15f + i * 0.3f, 209 + i * 0.6f), new Vector3(6, 0.3f + i * 0.6f, 0.6f), silver);
             var coverM = M("HD_Cover", new Color(0.4f, 0.4f, 0.42f));
             foreach (var p in new[] { new Vector3(-4, 0.6f, 186), new Vector3(5, 0.6f, 190), new Vector3(-6, 0.6f, 200), new Vector3(3, 0.6f, 202) }) { var cover = Cube("Cover", apex, p, new Vector3(3, 1.2f, 0.8f), coverM); cover.AddComponent<HyperdriveSmashable>(); }
-            // Loot prop, not a Viper. Same drive-into smash as the cover clutter. Ring Hall crate slot.
-            LootChestHang.Hang(root, LootChestHang.HyperdriveFloor, LootChestHang.HyperdriveYawDeg, 1.2f, true);
+            // Loot props, not Vipers. Same drive-into smash as the cover clutter. Two Ring Hall crate slots.
+            LootChestHang.PlaceAll(root, true);
             var gunM = M("HD_EdgeGun", new Color(0.15f, 0.15f, 0.15f));
             foreach (var p in new[] { new Vector3(-11, 1.2f, 184), new Vector3(11, 1.2f, 184), new Vector3(-11, 1.2f, 212), new Vector3(11, 1.2f, 212) }) // exactly 4
             { var g = Cube("EdgeGun", apex, p, new Vector3(0.6f, 0.6f, 1.6f), gunM); g.transform.LookAt(new Vector3(0, 1.2f, (z0 + z1) / 2)); }

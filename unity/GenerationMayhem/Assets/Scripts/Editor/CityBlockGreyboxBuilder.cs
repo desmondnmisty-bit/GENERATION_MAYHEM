@@ -149,8 +149,8 @@ namespace GenerationMayhem.EditorTools
             Crate(brk, new Vector3(-18.5f, 0, 4.5f));
             Crate(brk, new Vector3(-17.5f, 0, 3.5f));
             Crate(brk, new Vector3(-16.5f, 0, 4.5f));
-            // Loot prop beside the crates. Not a fighter. Imported mesh colliders are stripped; Breakable owns the box.
-            LootChestHang.Hang(brk, LootChestHang.DockFloor, 0f, 1.2f, false);
+            // Loot props beside the crates. Not fighters. Imported mesh colliders are stripped; Breakable owns each box.
+            LootChestHang.PlaceAll(brk, false);
         }
 
         // ------------------------------------------------------------------ zone A
