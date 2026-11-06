@@ -2,15 +2,19 @@
 
 Parked for Misty. These are not Pink Vipers and they are not wired into Hyperdrive or Dockyard spawners. Hive and Slither were not copied, moved, renamed, or edited.
 
-Each folder holds the playable GLB and a byte-identical `_LOD0` copy (same SHA-256). LOD1–LOD3 are not in this drop. No stand-in LOD geometry was invented. Split part meshes are not in this drop either. When those part GLBs arrive, parent each one under a named transform at local identity. Do not auto-skin the combined playable.
+`UnassignedExtraEnemy` loads meshes through `Resources.Load` (glTFast import, same path as the war rigs and world props) and strips colliders on the instance. The root stays at identity so each mesh keeps its authored coordinates. There is no avatar and no auto-skin.
 
-`UnassignedExtraEnemy` loads the playable through `Resources.Load` (glTFast import, same path as the war rigs and world props) and falls back to the LOD0 copy. Colliders on the instance are stripped. The root is left at identity so the mesh keeps its authored coordinates.
+The playable GLB is the display mesh. `_LOD0` is a byte-identical copy of that playable and is the display fallback. When a full part set is present, each part is parented under `Parts/{name}` at local identity and the display mesh is hidden.
 
-| Folder | Playable | Tris | Skins / anims |
+| Folder | Playable tris | Parts | LOD1–LOD3 |
 | --- | --- | --- | --- |
-| `GM_QuadCannon_Walker` | `GM_QuadCannon_Walker.glb` | 60000 | none |
-| `GM_ClawWalker_RedYellow` | `GM_ClawWalker_RedYellow.glb` | 60000 | none |
-| `GM_Skater_BlackRed` | `GM_Skater_BlackRed.glb` | 21514 | none |
+| `GM_QuadCannon_Walker` | 60,000 | none yet | none yet |
+| `GM_ClawWalker_RedYellow` | 60,000 | none yet | none yet |
+| `GM_Skater_BlackRed` | 21,514 | Head, Torso, Arm_L, Arm_R, Leg_L, Leg_R | LOD1 10,757 · LOD2 5,378 · LOD3 2,151 | |
+
+Skater parts live in `GM_Skater_BlackRed/parts/`. Their triangle counts sum to the playable: Head 1,247, Torso 2,586, Arm_L 5,043, Arm_R 2,963, Leg_L 4,895, Leg_R 4,780. Arm_L is denser than Arm_R; that is left as delivered. Part nodes carry no transform, so identity slots reassemble the body. LOD1–LOD3 sit next to the playable and are not swapped in at runtime.
+
+Quad cannon and claw walker split parts are not in the repo. No stand-in part or LOD geometry was invented for them.
 
 Known mesh notes, left as delivered:
 
@@ -18,6 +22,6 @@ Known mesh notes, left as delivered:
 - The quad cannon was cut like a biped, so the cannon is not its own part. It likely stayed on the torso or an arm.
 - Claw `FL` / `FR` / `BL` / `BR` labels may be swapped, and the leg sizes are uneven.
 - Skater `Arm_L` is denser than `Arm_R`.
-- Cut edges are open. That is expected for a later part rig.
+- Cut edges are open.
 
 Drop `*_Extra.prefab` in a scratch scene to preview. Do not add it to an encounter table.
