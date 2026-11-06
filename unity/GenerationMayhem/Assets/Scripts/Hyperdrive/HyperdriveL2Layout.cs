@@ -48,11 +48,12 @@ namespace GenerationMayhem.Hyperdrive
                 var lb = lip.AddComponent<BoxCollider>(); lb.isTrigger = true; lb.size = new Vector3(w, 1.4f, 0.6f); lip.AddComponent<KickerLipTrigger>();
             }
             void Funbox(float x, float z, float w, float l, float h) => Cube($"Funbox_{x}_{z}", rides, new Vector3(x, h / 2, z), new Vector3(w, h, l), boxM);
-            // same placements as web world.ts Soft rideables
-            Kicker(0, 10, 3, 3.5f, 0.8f); Rail(-3, 18, 32); Rail(3.5f, 40, 47); Kicker(3.5f, 37, 2.4f, 3.5f, 0.8f);
-            Funbox(0, 60, 6, 6, 0.6f); Kicker(0, 51, 3, 3.5f, 0.9f); Rail(-7, 44, 53); Rail(7, 75, 85);
+            // Movement thinning mirrors web: clear approach, ring-entry and cockpit-centre ramps.
+            // Unity has a simpler pre-existing layout; retain its other ramps, rails and platforms.
+            Rail(-3, 18, 32); Rail(3.5f, 40, 47); Kicker(3.5f, 37, 2.4f, 3.5f, 0.8f);
+            Funbox(0, 60, 6, 6, 0.6f); Rail(-7, 44, 53); Rail(7, 75, 85);
             Rail(0, 92, 120, 0.8f); Kicker(0, 90.5f, 2.2f, 3, 0.85f); Kicker(2.5f, 128, 3, 4, 1.2f);
-            Rail(-4, 138, 146, 0.8f); Rail(4, 166, 174, 0.8f); Kicker(0, 143, 3, 3.5f, 1.0f); Funbox(0, 155, 8, 5, 0.7f);
+            Rail(-4, 138, 146, 0.8f); Rail(4, 166, 174, 0.8f); Funbox(0, 155, 8, 5, 0.7f);
 
             // systems
             var sys = new GameObject("_HyperdriveSystems"); var frenzy = sys.AddComponent<MomsFrenzy>(); sys.AddComponent<HyperdriveHUD>(); sys.AddComponent<HyperdriveIntro>();
@@ -101,7 +102,7 @@ namespace GenerationMayhem.Hyperdrive
             var silver = M("HD_SilverStairs", new Color(0.82f, 0.84f, 0.88f));
             for (int i = 0; i < 6; i++) Cube("SilverStair_" + i, apex, new Vector3(0, 0.15f + i * 0.3f, 209 + i * 0.6f), new Vector3(6, 0.3f + i * 0.6f, 0.6f), silver);
             var coverM = M("HD_Cover", new Color(0.4f, 0.4f, 0.42f));
-            foreach (var p in new[] { new Vector3(-4, 0.6f, 186), new Vector3(5, 0.6f, 190), new Vector3(-6, 0.6f, 200), new Vector3(3, 0.6f, 202) }) Cube("Cover", apex, p, new Vector3(3, 1.2f, 0.8f), coverM);
+            foreach (var p in new[] { new Vector3(5, 0.6f, 190), new Vector3(-6, 0.6f, 200) }) Cube("Cover", apex, p, new Vector3(3, 1.2f, 0.8f), coverM);
             var gunM = M("HD_EdgeGun", new Color(0.15f, 0.15f, 0.15f));
             foreach (var p in new[] { new Vector3(-11, 1.2f, 184), new Vector3(11, 1.2f, 184), new Vector3(-11, 1.2f, 212), new Vector3(11, 1.2f, 212) }) // exactly 4
             { var g = Cube("EdgeGun", apex, p, new Vector3(0.6f, 0.6f, 1.6f), gunM); g.transform.LookAt(new Vector3(0, 1.2f, (z0 + z1) / 2)); }
