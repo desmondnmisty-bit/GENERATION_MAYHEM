@@ -58,7 +58,21 @@ namespace GenerationMayhem.Art
         /// <summary>Hang one chest on the floor. Returns null if that chest is already present or the GLB cannot load.</summary>
         public static Transform Hang(string resourcePath, string objectName, Transform parent, Vector3 floorPos, float yawDeg, float targetHeight, bool hyperdriveSmash)
         {
-            if (GameObject.Find(objectName) != null) return GameObject.Find(objectName).transform;
+            var existing = GameObject.Find(objectName);
+            if (existing != null)
+            {
+                var bakedBreakable = existing.GetComponent<Breakable>();
+                if (bakedBreakable != null && existing.transform.childCount > 0)
+                    bakedBreakable.ConfigureVisual(existing.transform.GetChild(0).gameObject);
+                // Earlier Dock dressing attached generic crate visuals to these imported loot models.
+                // Keep only the chest visible, not a crate overlay or its generic debris.
+                foreach (var n in new[] { "CB_Intact", "CB_Cracked", "CB_Debris" })
+                {
+                    var kit = existing.transform.Find(n);
+                    if (kit != null) kit.gameObject.SetActive(false);
+                }
+                return existing.transform;
+            }
             var prefab = Resources.Load<GameObject>(resourcePath);
             if (prefab == null)
             {
@@ -84,8 +98,7 @@ namespace GenerationMayhem.Art
             {
                 var breakable = root.AddComponent<Breakable>();
                 breakable.kind = Breakable.Kind.Crate;
-                var visual = inst;
-                breakable.onBroken.AddListener(() => { if (visual != null) visual.SetActive(false); });
+                breakable.ConfigureVisual(inst);
             }
 
             Debug.Log("[GM] loot chest hung: " + objectName + " at " + floorPos);

@@ -1,10 +1,13 @@
 // Copyright Dark Logic Studios. Generation Mayhem.
 // Vixen melee: light/heavy punch-kick combos, Check (shove), Block, lock-on, aerial strike and ramp slam.
-// Legacy Input Manager, same approach as SkatePawnController / SkaterTraversal.
+// Input: Input System actions via GMControls (Light / Heavy / Check / Block / LockOn), player slot 0.
+// Mouse clicks are bindings on the same actions (LMB=light, RMB=heavy, MMB=lock-on).
+// Mapping + remap docs: Assets/Resources/Input/CONTROLS.md.
 
 using System.Collections.Generic;
 using UnityEngine;
 using GenerationMayhem.Combat;
+using GenerationMayhem.Controls;
 using GenerationMayhem.Traversal;
 
 namespace GenerationMayhem.Player
@@ -20,17 +23,9 @@ namespace GenerationMayhem.Player
             public bool shove;
         }
 
-        [Header("Input (keyboard / mouse / pad)")]
-        public KeyCode lightKey = KeyCode.K;
-        public KeyCode heavyKey = KeyCode.L;
-        public KeyCode checkKey = KeyCode.E;
-        public KeyCode blockKey = KeyCode.Q;
-        public KeyCode lockKey = KeyCode.Tab;
-        public KeyCode padLight = KeyCode.JoystickButton2;  // X / Square
-        public KeyCode padHeavy = KeyCode.JoystickButton3;  // Y / Triangle
-        public KeyCode padCheck = KeyCode.JoystickButton1;  // B / Circle
-        public KeyCode padBlock = KeyCode.JoystickButton4;  // LB / L1
-        public KeyCode padLock = KeyCode.JoystickButton5;   // RB / R1
+        // Input (keyboard / mouse / pad) lives in Assets/Resources/Input/GMControls.inputactions:
+        // Light = K / LMB / X-Square · Heavy = L / RMB / Y-Triangle · Check = E / B-Circle ·
+        // Block = Q / LB-L1 (hold) · Lock-on = Tab / MMB / RB-R1. Rebind via pause menu / settings.
 
         [Header("Light chain: jab → cross → kick")]
         public AttackDef[] lightChain =
@@ -69,6 +64,8 @@ namespace GenerationMayhem.Player
 
         SkatePawnController _pawn;
         SkaterTraversal _trav;
+        GMControls _controls;
+        GMControls Controls => _controls ?? (_controls = GMControls.For(0));
         Health _hp;
         KnockbackBody _kb;
         FighterAnimator _anim;
@@ -111,8 +108,6 @@ namespace GenerationMayhem.Player
             return blockDamageTaken;
         }
 
-        bool Down(KeyCode a, KeyCode b) => Input.GetKeyDown(a) || Input.GetKeyDown(b);
-
         void Update()
         {
             bool down = _hp != null && !_hp.IsAlive;
@@ -125,14 +120,15 @@ namespace GenerationMayhem.Player
 
             // Block (hold)
             bool wasBlocking = IsBlocking;
-            IsBlocking = !stunned && !IsAttacking && (Input.GetKey(blockKey) || Input.GetKey(padBlock)) && (_trav == null || _trav.State == SkaterTraversal.TraversalState.Ground);
+            IsBlocking = !stunned && !IsAttacking && Controls.Block.IsPressed() && (_trav == null || _trav.State == SkaterTraversal.TraversalState.Ground);
             _pawn.SpeedMultiplier = (IsBlocking ? 0.5f : 1f) * Match.MistCloud.SlowFactorAt(transform.position, true);
             if (IsBlocking && !wasBlocking && _anim != null) _anim.Play("Block", 0.4f);
 
-            // Inputs → buffer
-            if (Down(lightKey, padLight) || Input.GetMouseButtonDown(0)) { _buffered = Buffered.Light; _bufferUntil = Time.time + inputBuffer; }
-            if (Down(heavyKey, padHeavy) && !Input.GetKey(padBlock) || Input.GetMouseButtonDown(1)) { _buffered = Buffered.Heavy; _bufferUntil = Time.time + inputBuffer; }
-            if (Down(checkKey, padCheck)) { _buffered = Buffered.Check; _bufferUntil = Time.time + inputBuffer; }
+            // Inputs → buffer. Heavy is swallowed while pad block is held so the legacy
+            // Shatter-Slingshot combo (hold LB + press Y) doesn't buffer a heavy, same as before.
+            if (Controls.LightAttack.WasPressedThisFrame()) { _buffered = Buffered.Light; _bufferUntil = Time.time + inputBuffer; }
+            if (Controls.HeavyAttack.WasPressedThisFrame() && !GMControls.HeldOnGamepad(Controls.Block)) { _buffered = Buffered.Heavy; _bufferUntil = Time.time + inputBuffer; }
+            if (Controls.Check.WasPressedThisFrame()) { _buffered = Buffered.Check; _bufferUntil = Time.time + inputBuffer; }
             if (Time.time > _bufferUntil) _buffered = Buffered.None;
 
             // Resolve a pending strike on its active frame
@@ -161,6 +157,7 @@ namespace GenerationMayhem.Player
 
         void Begin(AttackDef a, bool aerial)
         {
+            GenerationMayhem.Audio.GMGameplayAudio.Play(a.damage >= 20f ? "heavy" : "punch");
             FaceTarget();
             _pending = a; _hasPending = true; _pendingAerial = aerial;
             _strikeAt = Time.time + a.windup;
@@ -239,7 +236,7 @@ namespace GenerationMayhem.Player
         // ---- Lock-on ----
         void TickLock()
         {
-            if (Down(lockKey, padLock) || Input.GetMouseButtonDown(2))
+            if (Controls.LockOn.WasPressedThisFrame())
                 LockTarget = LockTarget != null ? null : CombatQuery.NearestEnemy(Team.Family, transform.position, lockRange);
             if (LockTarget != null && (!LockTarget.IsAlive || (LockTarget.transform.position - transform.position).sqrMagnitude > (lockRange * 1.5f) * (lockRange * 1.5f)))
                 LockTarget = null;

@@ -37,6 +37,17 @@ namespace GenerationMayhem.Traversal
         float _goneAt;
         MaterialPropertyBlock _mpb;
 
+        // Serialized visual root survives scene baking; runtime UnityEvent lambdas do not.
+        public void ConfigureVisual(GameObject visual)
+        {
+            if (intactRoot != null && intactRoot != visual) intactRoot.SetActive(false);
+            if (crackedRoot != null) crackedRoot.SetActive(false);
+            if (debrisRoot != null) debrisRoot.SetActive(false);
+            crackedRoot = null; debrisRoot = null;
+            intactRoot = visual;
+            intactRenderer = null;
+        }
+
         void Awake()
         {
             if (intactRenderer == null && intactRoot == null) intactRenderer = GetComponentInChildren<Renderer>();
@@ -103,6 +114,7 @@ namespace GenerationMayhem.Traversal
         void Break()
         {
             if (State == BreakState.Broken || State == BreakState.Gone) return;
+            GenerationMayhem.Audio.GMGameplayAudio.Play("bang", .8f);
             State = BreakState.Broken;
             foreach (var c in _solid) if (c != null) c.enabled = false;
             if (intactRenderer != null) intactRenderer.enabled = false;

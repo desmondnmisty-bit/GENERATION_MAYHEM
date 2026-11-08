@@ -17,13 +17,13 @@ namespace GenerationMayhem.Traversal
         public SkaterTraversal target;
 
         [Header("Ground (exists)")]
-        public float groundDistance = 6f;
-        public float groundHeight = 2.2f;
-        public float groundPitch = 10f;
+        public float groundDistance = 4f;
+        public float groundHeight = 1.15f;
+        public float groundPitch = 12f;
 
         [Header("Ramp air [SLICE]")]
-        public float airDistance = 7.5f;
-        public float airPitch = 18f;
+        public float airDistance = 5f;
+        public float airPitch = 16f;
         [Tooltip("Don't follow vertical for this long after takeoff (anti-nausea).")]
         public float airVerticalDelay = 0.3f;
         public float airVerticalEase = 0.35f;
@@ -38,8 +38,8 @@ namespace GenerationMayhem.Traversal
         [Header("Combat lock [SLICE]")]
         public float combatRadius = 10f;
         public int combatMinEnemies = 3;
-        public float combatExtraDistancePerMeter = 0.35f;
-        public float combatMaxDistance = 11f;
+        public float combatExtraDistancePerMeter = 0.12f;
+        public float combatMaxDistance = 5.8f;
 
         [Header("Smoothing")]
         public float defaultYawDamping = 0.2f;
@@ -72,6 +72,14 @@ namespace GenerationMayhem.Traversal
             _dist = groundDistance; _pitch = groundPitch;
         }
 
+        public void SnapToTarget()
+        {
+            if (!target) return;
+            _yaw=target.transform.eulerAngles.y; _focusY=target.transform.position.y; _dist=groundDistance; _pitch=groundPitch;
+            _yawVel=_focusYVel=_distVel=_pitchVel=0; _side=_sideVel=_posVel=Vector3.zero; _airStart=-1; CombatLocked=false;
+            var rot=Quaternion.Euler(_pitch,_yaw,0); var look=target.transform.position+Vector3.up*(groundHeight*.5f);
+            transform.SetPositionAndRotation(look-rot*Vector3.forward*_dist+Vector3.up*(groundHeight*.5f),rot);
+        }
         void LateUpdate()
         {
             if (target == null) return;

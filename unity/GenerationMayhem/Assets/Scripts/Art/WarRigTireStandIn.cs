@@ -1,5 +1,5 @@
 // LOCAL ONLY — Misty lockstep 2026-11-04: mirror Three.js web/src/game.ts addTruckTires R/T/X exactly.
-// Soft Soft Soft Soft mesh GO (Misty pt456u 2026-11-05): stamped Tripo war-rig meshes hung from Assets/Resources/WarRigs (same GLBs as web/src/assets/models/warrig). Requires com.unity.cloud.gltfast to import .glb.
+// Misty 2026-11-07: prepared share-only REVIEW meshes replace the four Soft hangs in Unity only. Requires glTFast.
 using UnityEngine;
 
 namespace GenerationMayhem.Art
@@ -38,60 +38,32 @@ namespace GenerationMayhem.Art
         {
             if (root == null) return null;
             HideBakedWheels(root);
-            HangWarRigMesh(root, who);
             var old = root.Find("WarRigTireStandIn");
             if (old) Object.DestroyImmediate(old.gameObject);
-
-            var v = Rtx(who);
-            float R = v.x, T = v.y, X = v.z;
-            var hub = Hub(who);
-            var kit = new GameObject("WarRigTireStandIn").transform;
-            kit.SetParent(root, false);
-
-            for (int s = -1; s <= 1; s += 2)
-            {
-                var w = new GameObject(s < 0 ? "Tire_L" : "Tire_R").transform;
-                w.SetParent(kit, false);
-                w.localPosition = new Vector3(s * X, R + T, 0f);
-
-                // Rubber torus approx: thin cylinder as tire carcass (axis = local X)
-                var tire = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                tire.name = "Rubber";
-                Object.DestroyImmediate(tire.GetComponent<Collider>());
-                tire.transform.SetParent(w, false);
-                tire.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
-                tire.transform.localScale = new Vector3(R * 2f, T, R * 2f);
-                SetMat(tire, new Color(0.05f, 0.05f, 0.05f), Color.black, 0f);
-
-                // Hub cap
-                var cap = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                cap.name = "Hub";
-                Object.DestroyImmediate(cap.GetComponent<Collider>());
-                cap.transform.SetParent(w, false);
-                cap.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
-                cap.transform.localScale = new Vector3(R * 0.44f, T * 0.7f, R * 0.44f);
-                SetMat(cap, hub, hub, 2.2f);
-            }
-            return kit;
+            // Review the prepared model's real wheels; do not mask them with procedural tire substitutes.
+            return HangWarRigMesh(root, who);
         }
-
         public static string MeshName(WarRigWho who) =>
-            who == WarRigWho.Vixen ? "GM_Vixen_WarRig_v010_Soft" :
-            who == WarRigWho.Payton ? "GM_Payton_WarRig_v006_Soft" :
-            who == WarRigWho.Brianna ? "GM_Brianna_WarRig_v005_Soft" : "GM_Kailee_WarRig_v006_Soft";
+            who == WarRigWho.Vixen ? "GM_Vixen_WarRig_Prepared" :
+            who == WarRigWho.Payton ? "GM_Payton_WarRig_Prepared" :
+            who == WarRigWho.Brianna ? "GM_Brianna_WarRig_Prepared" : "GM_Kailee_WarRig_Prepared";
 
         /// <summary>Lockstep w/ Three.js hangWarRig: scale stamped mesh to hero height, feet on root, hide old capsule body.</summary>
         public static Transform HangWarRigMesh(Transform root, WarRigWho who, float height = 1.7f)
         {
             var old = root.Find("WarRigMesh");
             if (old) Object.DestroyImmediate(old.gameObject);
-            var prefab = Resources.Load<GameObject>("WarRigs/" + MeshName(who));
+            var prefab = Resources.Load<GameObject>("WarRigs/Prepared/" + MeshName(who));
             if (prefab == null) { Debug.LogError("[GM] WAR-RIG MESH FAILED to load Resources/WarRigs/" + MeshName(who) + " (glTFast installed?) — keeping stand-in body"); return null; }
-            foreach (var r in root.GetComponents<Renderer>()) r.enabled = false; // capsule stand-in body
+            // Hide stand-ins only after verifying the imported mesh has renderers.
             var holder = new GameObject("WarRigMesh").transform;
             holder.SetParent(root, false);
             var inst = Object.Instantiate(prefab, holder, false);
-            var rs = inst.GetComponentsInChildren<Renderer>();
+            var rs = inst.GetComponentsInChildren<Renderer>(true);
+            if (rs.Length == 0) { Debug.LogError("[GM] WAR-RIG loaded without renderers: " + who); Object.DestroyImmediate(holder.gameObject); return null; }
+            foreach (var r in root.GetComponents<Renderer>()) r.enabled = false;
+            var oldVisual = root.Find("MeshRoot");
+            if (oldVisual) foreach (var r in oldVisual.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
             if (rs.Length > 0)
             {
                 var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
@@ -100,7 +72,16 @@ namespace GenerationMayhem.Art
                 var lc = holder.InverseTransformPoint(b.center); var lmin = holder.InverseTransformPoint(b.min);
                 inst.transform.localPosition = new Vector3(-lc.x * s, -lmin.y * s, -lc.z * s);
             }
-            Debug.Log("[GM] war-rig mesh hung: " + who);
+            var animator = inst.GetComponentInChildren<Animator>(true);
+            if (animator)
+            {
+                animator.runtimeAnimatorController = Resources.Load<RuntimeAnimatorController>("WarRigs/Prepared/Controllers/AC_" + who + "_Prepared");
+                animator.applyRootMotion = false; // the CharacterController remains the movement/collision authority
+                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                var driver = root.GetComponent<PreparedWarRigAnimator>() ?? root.gameObject.AddComponent<PreparedWarRigAnimator>();
+                driver.Configure(animator);
+            }
+            Debug.Log("[GM] PREPARED REVIEW war-rig hung: " + who + " skinned=" + inst.GetComponentsInChildren<SkinnedMeshRenderer>(true).Length);
             return holder;
         }
 
@@ -146,7 +127,7 @@ namespace GenerationMayhem.Art
             if (autoFromName)
             {
                 var n = gameObject.name.ToLowerInvariant();
-                if (n.Contains("payton") || n.Contains("jessica")) who = WarRigWho.Payton;
+                if (n.Contains("payton") || n.Contains("peyton")) who = WarRigWho.Payton;
                 else if (n.Contains("brianna")) who = WarRigWho.Brianna;
                 else if (n.Contains("kailee")) who = WarRigWho.Kailee;
                 else who = WarRigWho.Vixen;

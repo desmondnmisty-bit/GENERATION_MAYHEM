@@ -12,6 +12,8 @@ namespace GenerationMayhem.Match
 
         public static Projectile Fire(Vector3 from, Vector3 to, Transform follow, float speed, float apex, Color color, float size, Action<Vector3> onImpact)
         {
+            GenerationMayhem.Audio.GMGameplayAudio.Play("pistol");
+            GenerationMayhem.Audio.GMGameplayAudio.Play("casing", .5f);
             var go = FxUtil.Sphere(from, size, color, 0f, 2.5f);
             go.name = "Projectile";
             var p = go.AddComponent<Projectile>();

@@ -1,8 +1,8 @@
 // GM world props hang (2026-11-06): stamped Tripo environment props hung from Assets/Resources/WorldProps
 // (GM_Roadway_MagentaRamp_raw / GM_Roadway_SplitDeck_raw / GM_Portal_PurpleGate_raw — 2K Current textures, do not re-export).
 // Same import path as the war rigs (Assets/Resources/WarRigs): requires com.unity.cloud.gltfast to import .glb.
-// These are world PROPS (roadway / portal dressing), not characters or enemies. Visual-only: colliders are stripped,
-// so the greybox floors / kickers / rails keep all gameplay collision and the NavMesh is untouched.
+// These are world PROPS (roadway / portal dressing), not characters or enemies. Imported colliders are stripped,
+// then structural meshes receive per-part static collision. Portal openings stay passable; NavMesh is untouched.
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -50,6 +50,8 @@ namespace GenerationMayhem.Art
             var inst = Object.Instantiate(prefab, holder, false);
             StripColliders(inst);
             FitBottomCenter(holder, inst.transform, targetSize, fit);
+            if (propName == RoadwayMagentaRamp || propName == RoadwaySplitDeck || propName == "GM_SpaceStation_raw" || propName == "GM_SciFi_Tower_raw")
+                WorldStructureCollision.Ensure(holder);
             return holder;
         }
 
@@ -74,18 +76,20 @@ namespace GenerationMayhem.Art
             // Largest footprint first → the big deck slabs land on the big roadway slots, walls/rails on the small ones.
             pieces.Sort((a, b) => Footprint(b).CompareTo(Footprint(a)));
 
-            int n = Mathf.Min(slots.Count, pieces.Count);
+            int n = pieces.Count;
             for (int i = 0; i < n; i++)
             {
-                var slot = slots[i];
+                var slot = i < slots.Count ? slots[i] : new KitSlot(new Vector3(-57+(i%17)*3.25f,0,8.5f+(i/17)%5*1.5f),0,2f);
                 var holder = new GameObject("SplitDeckPiece_" + i).transform;
                 holder.SetParent(kit, false);
                 holder.position = slot.pos;
                 holder.rotation = Quaternion.Euler(0f, slot.yawDeg, 0f);
                 pieces[i].SetParent(holder, false);
                 FitBottomCenter(holder, pieces[i], slot.size, Fit.Footprint);
+                var pr=pieces[i].GetComponent<Renderer>(); if(pr && pr.bounds.size.y>2.2f) holder.localScale*=2.2f/pr.bounds.size.y;
             }
-            Object.DestroyImmediate(staging);
+            Debug.Log("[Dockyard] Split-deck pieces landed="+n+" slots="+slots.Count+"; no pieces discarded."); Object.DestroyImmediate(staging);
+            WorldStructureCollision.Ensure(kit);
             return kit;
         }
 
