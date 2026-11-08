@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
+using GenerationMayhem.Art;
 using GenerationMayhem.Combat;
 using GenerationMayhem.Player;
 using GenerationMayhem.Traversal;
@@ -266,40 +267,46 @@ namespace GenerationMayhem.Match
             hp.SetMax(kind == ViperKind.TailStrike ? 160f : kind == ViperKind.Cobra ? 55f : kind == ViperKind.Swarm ? 40f : 70f);
             hp.deactivateAfterDeath = 1.6f;
 
-            // Visual
+            // Visual. Fang / Cobra (Hood Strike) / Swarm take the split GLB when it loads.
+            // Tail-Strike is not one of those slots — it keeps the FBX or pink capsule already here.
             var meshRoot = new GameObject("MeshRoot").transform;
             meshRoot.SetParent(go.transform, false);
             Color tint = kind == ViperKind.Fang ? PinkA : kind == ViperKind.TailStrike ? PinkB : kind == ViperKind.Cobra ? PinkD : PinkC;
             Animator anim = null;
-            GameObject model = null;
-            if (viperModels != null && viperModels.Length > 0)
-                model = (int)kind < viperModels.Length && viperModels[(int)kind] != null ? viperModels[(int)kind] : viperModels[0];
-            if (model != null)
+            string parts = kind == ViperKind.Fang ? ViperMeshHang.Fang : kind == ViperKind.Cobra ? ViperMeshHang.Cobra : kind == ViperKind.Swarm ? ViperMeshHang.Swarm : null;
+            bool hung = parts != null && ViperMeshHang.TryHang(meshRoot, parts, col.height);
+            if (!hung)
             {
-                var m = Instantiate(model, meshRoot);
-                m.transform.localPosition = Vector3.zero; m.transform.localRotation = Quaternion.identity;
-                m.transform.localScale = Vector3.one * viperModelScale * (kind == ViperKind.TailStrike ? 1.15f : kind == ViperKind.Swarm ? 0.9f : 1f);
-                foreach (var c in m.GetComponentsInChildren<Collider>()) Destroy(c);
-                anim = m.GetComponentInChildren<Animator>();
-                if (anim == null) anim = m.AddComponent<Animator>();
-                if (viperAnimator != null) anim.runtimeAnimatorController = viperAnimator;
-                anim.applyRootMotion = false;
-                foreach (var r in m.GetComponentsInChildren<Renderer>()) FxUtil.Tint(r, Color.Lerp(r.sharedMaterial != null && r.sharedMaterial.HasProperty("_Color") ? r.sharedMaterial.color : Color.white, tint, 0.35f));
-            }
-            else
-            {
-                var cap = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                Destroy(cap.GetComponent<Collider>());
-                cap.name = "Body";
-                cap.transform.SetParent(meshRoot, false);
-                cap.transform.localPosition = Vector3.up * col.height * 0.5f;
-                cap.transform.localScale = new Vector3(col.radius * 2f, col.height * 0.5f, col.radius * 2f);
-                cap.GetComponent<Renderer>().sharedMaterial = FxUtil.Mat(tint);
-                var visor = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                Destroy(visor.GetComponent<Collider>());
-                visor.transform.SetParent(cap.transform, false);
-                visor.transform.localPosition = new Vector3(0f, 0.55f, 0.42f); visor.transform.localScale = new Vector3(0.7f, 0.15f, 0.2f);
-                visor.GetComponent<Renderer>().sharedMaterial = FxUtil.Mat(FxUtil.ToxicGreen, 2f);
+                GameObject model = null;
+                if (viperModels != null && viperModels.Length > 0)
+                    model = (int)kind < viperModels.Length && viperModels[(int)kind] != null ? viperModels[(int)kind] : viperModels[0];
+                if (model != null)
+                {
+                    var m = Instantiate(model, meshRoot);
+                    m.transform.localPosition = Vector3.zero; m.transform.localRotation = Quaternion.identity;
+                    m.transform.localScale = Vector3.one * viperModelScale * (kind == ViperKind.TailStrike ? 1.15f : kind == ViperKind.Swarm ? 0.9f : 1f);
+                    foreach (var c in m.GetComponentsInChildren<Collider>()) Destroy(c);
+                    anim = m.GetComponentInChildren<Animator>();
+                    if (anim == null) anim = m.AddComponent<Animator>();
+                    if (viperAnimator != null) anim.runtimeAnimatorController = viperAnimator;
+                    anim.applyRootMotion = false;
+                    foreach (var r in m.GetComponentsInChildren<Renderer>()) FxUtil.Tint(r, Color.Lerp(r.sharedMaterial != null && r.sharedMaterial.HasProperty("_Color") ? r.sharedMaterial.color : Color.white, tint, 0.35f));
+                }
+                else
+                {
+                    var cap = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                    Destroy(cap.GetComponent<Collider>());
+                    cap.name = "Body";
+                    cap.transform.SetParent(meshRoot, false);
+                    cap.transform.localPosition = Vector3.up * col.height * 0.5f;
+                    cap.transform.localScale = new Vector3(col.radius * 2f, col.height * 0.5f, col.radius * 2f);
+                    cap.GetComponent<Renderer>().sharedMaterial = FxUtil.Mat(tint);
+                    var visor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    Destroy(visor.GetComponent<Collider>());
+                    visor.transform.SetParent(cap.transform, false);
+                    visor.transform.localPosition = new Vector3(0f, 0.55f, 0.42f); visor.transform.localScale = new Vector3(0.7f, 0.15f, 0.2f);
+                    visor.GetComponent<Renderer>().sharedMaterial = FxUtil.Mat(FxUtil.ToxicGreen, 2f);
+                }
             }
             var fa = go.AddComponent<FighterAnimator>();
             fa.animator = anim;
