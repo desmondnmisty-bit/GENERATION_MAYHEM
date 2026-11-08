@@ -27,7 +27,7 @@ namespace GenerationMayhem.Match
         public static bool IsOver => Instance != null && (Instance.State == MatchState.Won || Instance.State == MatchState.Lost);
         public static int Attempts { get; private set; }
         public static bool IntroSeen { get; private set; }
-        public static int AliveVipers => ViperGrunt.AliveCount;
+        public static int AliveVipers => ViperGrunt.AliveCount + IronRoseBrute.AliveCount;
 
         [Header("Family (all four down = loss)")]
         public Health vixen;
@@ -42,7 +42,7 @@ namespace GenerationMayhem.Match
         public SlingshotFinisher finisher;
         public CraneHazard craneX1;
         public CraneHazard craneX2;
-        public Transform[] viperSpawns;
+        public Transform[] fodderSpawns;
         [Tooltip("Optional Viper models (FBX) by ViperKind: Fang, Cobra, TailStrike, Swarm. Empty = pink capsules.")]
         public GameObject[] viperModels;
         public RuntimeAnimatorController viperAnimator;
@@ -105,6 +105,11 @@ namespace GenerationMayhem.Match
         void Start()
         {
             Attempts++;
+            if (DockBrutesOnly) {
+                GenerationMayhem.Flow.GameFlow.MarkStartDone(); IntroSeen=true; State=MatchState.Fighting;
+                if (IronRoseBrute.AliveCount==0 && fodderSpawns!=null) for(int i=0;i<fodderSpawns.Length;i++) if(fodderSpawns[i]) IronRoseBrute.Spawn(fodderSpawns[i].position,i);
+                SetBanner("IRON ROSE SYNDICATE",2f); Debug.Log("[Dockyard] Opening encounter active: Iron Rose Syndicate Brutes only; Slither/Vipers absent."); return;
+            }
             if (stub == null) stub = FindFirstObjectByType<ShatterSlingshotStub>();
             if (victory == null) victory = FindFirstObjectByType<VictoryController>();
             if (boss == null) boss = FindFirstObjectByType<SlitherBoss>();
@@ -127,7 +132,7 @@ namespace GenerationMayhem.Match
                 Say("Slither", "Look who crawled back.");
                 Say("Vixen", "Come say it to my face.");
                 Say("Kailee", "Cool. Gonna stab you.");
-                Say("Ref Bot", "Family versus Vipers! Keep it on the asphalt!");
+                Say("Ref Bot", DockBrutesOnly ? "Family versus the Iron Rose Syndicate! Keep it on the asphalt!" : "Family versus Vipers! Keep it on the asphalt!");
                 float until = Time.time + 16f;
                 yield return null;
                 while (Time.time < until && (HasLine || _lines.Count > 0))
@@ -217,6 +222,7 @@ namespace GenerationMayhem.Match
         // ---------------- waves ----------------
         IEnumerator Wave(int n)
         {
+            if (DockBrutesOnly) { yield return BruteWave(n); yield break; }
             ViperKind[] kinds;
             switch (n)
             {
@@ -228,8 +234,8 @@ namespace GenerationMayhem.Match
             for (int i = 0; i < kinds.Length; i++)
             {
                 if (IsOver) yield break;
-                var at = viperSpawns != null && viperSpawns.Length > 0 && viperSpawns[i % viperSpawns.Length] != null
-                    ? viperSpawns[(i + n) % viperSpawns.Length].position
+                var at = fodderSpawns != null && fodderSpawns.Length > 0 && fodderSpawns[i % fodderSpawns.Length] != null
+                    ? fodderSpawns[(i + n) % fodderSpawns.Length].position
                     : (boss != null ? boss.transform.position + Random.insideUnitSphere * 8f : Vector3.zero);
                 SpawnViper(kinds[i], at, n * 10 + i);
                 yield return new WaitForSeconds(0.45f);
@@ -237,11 +243,23 @@ namespace GenerationMayhem.Match
             if (kinds[kinds.Length - 1] == ViperKind.Swarm) Say("Payton", "Swarm's here. Clumped up, perfect for a Volley.");
         }
 
+        IEnumerator BruteWave(int n)
+        {
+            int count=n==1?3:4; SetBanner("IRON ROSE SYNDICATE INCOMING",2f);
+            for(int i=0;i<count;i++) {
+                if(IsOver) yield break;
+                var at=fodderSpawns!=null && fodderSpawns.Length>0 ? fodderSpawns[(i+n)%fodderSpawns.Length].position : new Vector3(38,0,8);
+                IronRoseBrute.Spawn(at,n*10+i); yield return new WaitForSeconds(.45f);
+            }
+        }
         static readonly Color PinkA = new Color(1f, 0.25f, 0.62f), PinkB = new Color(0.9f, 0.1f, 0.45f),
                               PinkC = new Color(1f, 0.55f, 0.8f), PinkD = new Color(0.75f, 0.2f, 0.75f);
 
+        public bool dockBrutesOnly; // Dock fodder: Iron Rose Syndicate brutes only, using the original IRS_02 soldier asset.
+        bool DockBrutesOnly => dockBrutesOnly || gameObject.scene.name == "Dockyard";
         public ViperGrunt SpawnViper(ViperKind kind, Vector3 at, int index)
         {
+            if (DockBrutesOnly) { Debug.LogWarning("[Dockyard] Viper spawn blocked. Iron Rose Syndicate fodder only."); return null; }
             if (NavMesh.SamplePosition(at, out NavMeshHit hit, 6f, NavMesh.AllAreas)) at = hit.position;
             var go = new GameObject("Viper_" + kind + "_" + index);
             go.transform.position = at;           // position BEFORE the agent exists, so it binds to the right mesh
@@ -386,7 +404,7 @@ namespace GenerationMayhem.Match
 
         void Lose()
         {
-            State = MatchState.Lost;
+            State = MatchState.Lost; if (DockBrutesOnly) { SetBanner("THE FAMILY IS DOWN", 4f); return; }
             Say("Ref Bot", "Family's down! Winner: SLITHER!");
             string[] gloat = { "Interest compounds, mama.", "Same time tomorrow? I'll be here.", "Tell your girl I'll keep her paperwork warm." };
             Say("Slither", gloat[Random.Range(0, gloat.Length)]);
