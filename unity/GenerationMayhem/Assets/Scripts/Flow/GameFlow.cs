@@ -58,7 +58,7 @@ namespace GenerationMayhem.Flow
 
         void Awake()
         {
-            Instance = this;
+            Instance = this; if(gameObject.scene.name == "Dockyard") MarkStartDone();
             if (HoldPreMatch) _screen = Screen.Start;
             if (GetComponent<UpgradeApplier>() == null) gameObject.AddComponent<UpgradeApplier>();
         }
@@ -79,6 +79,7 @@ namespace GenerationMayhem.Flow
         // ---------------- bots ----------------
         void SpawnBots(SlitherBoss boss)
         {
+            if (gameObject.scene.name == "Dockyard") return;
             Vector3 center = boss != null ? boss.transform.position : Vector3.zero;
             Vector3 vix = _md != null && _md.vixen != null ? _md.vixen.transform.position : center + Vector3.back * 10f;
             Vector3 mid = Vector3.Lerp(vix, center, 0.5f);

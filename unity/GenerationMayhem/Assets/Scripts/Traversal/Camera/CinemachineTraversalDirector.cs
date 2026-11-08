@@ -26,13 +26,13 @@ namespace GenerationMayhem.Traversal
         public CinemachineTargetGroup targetGroup;
 
         [Header("Ground (exists): 6 m back, ~2.2 m up, 10° down")]
-        public float groundDistance = 6f;
-        public float proxyHeight = 1.2f;
-        public float groundPitch = 10f;
+        public float groundDistance = 4f;
+        public float proxyHeight = 1.15f;
+        public float groundPitch = 12f;
 
         [Header("Ramp air [SLICE]")]
-        public float airDistance = 7.5f;
-        public float airPitch = 18f;
+        public float airDistance = 5f;
+        public float airPitch = 16f;
         public float airVerticalDelay = 0.3f;
         public float airVerticalEase = 0.35f;
 
@@ -48,8 +48,8 @@ namespace GenerationMayhem.Traversal
         public int combatMinEnemies = 3;
         public int traversalPriority = 10;
         public int combatPriority = 20;
-        public float combatExtraDistancePerMeter = 0.7f;
-        public float combatMaxDistance = 11f;
+        public float combatExtraDistancePerMeter = 0.24f;
+        public float combatMaxDistance = 5.8f;
 
         [Header("Smoothing")]
         public float defaultYawDamping = 0.2f;
@@ -88,6 +88,15 @@ namespace GenerationMayhem.Traversal
             _dist = groundDistance; _pitch = groundPitch;
         }
 
+        public void SnapToTarget()
+        {
+            if (!target || !proxy) return;
+            var old=proxy.position;
+            _yaw=target.transform.eulerAngles.y; _focusY=target.transform.position.y; _dist=groundDistance; _pitch=groundPitch;
+            _yawVel=_focusYVel=_distVel=_pitchVel=_shoulder=_shoulderVel=0; _side=_sideVel=Vector3.zero; _airStart=-1; CombatLocked=false;
+            proxy.SetPositionAndRotation(target.transform.position+Vector3.up*proxyHeight,Quaternion.Euler(groundPitch,_yaw,0));
+            foreach(var cam in new[]{traversalCam,combatCam}) if(cam) { cam.OnTargetObjectWarped(proxy,proxy.position-old); cam.PreviousStateIsValid=false; }
+        }
         void LateUpdate()
         {
             if (target == null || proxy == null) return;

@@ -21,7 +21,7 @@ namespace GenerationMayhem.UI
         {
         };
         public Sprite[] art;                       // optional, index-matched to beats
-        public string nextScene = GMFlow.StartScene;
+        public string nextScene = GMFlow.FightScene;
         public const string Tagline = "CAN YOU SURVIVE THE CIRCUIT";
 
         Image _art, _fade, _bolt, _tint; Text _title, _caption, _ph; RectTransform _stage; GameObject _skip;
@@ -47,7 +47,7 @@ namespace GenerationMayhem.UI
 
         void Start()
         {
-            Time.timeScale = 1f;
+            Time.timeScale = 1f; Application.runInBackground = true; if (!FindFirstObjectByType<AudioListener>()) gameObject.AddComponent<AudioListener>(); GenerationMayhem.Flow.GameFlow.MarkStartDone(); Debug.Log("[Intro] Cold-open movie starting -> Dockyard (movie-only)");
             var c = GMUIKit.Canvas("IntroCanvas", 200).transform;
             GMUIKit.Panel(c, "BG", new Color(0.02f, 0.02f, 0.03f, 1f), Vector2.zero, Vector2.one);
             _stage = GMUIKit.Rect(c, "Stage", new Vector2(0.08f, 0.16f), new Vector2(0.92f, 0.88f));
@@ -97,7 +97,7 @@ namespace GenerationMayhem.UI
             _vp.Prepare();
             for (float t = 0; !_vp.isPrepared && t < 5f; t += Time.unscaledDeltaTime) yield return null;
             if (!_vp.isPrepared) { Debug.LogWarning("[Intro] video failed to prepare -> skip (movie-only Soft GO, no still/caption pre-roll)"); CleanupVideo(); yield return SkipToNext(); yield break; }
-            _vp.Play();
+            _vp.Play(); Debug.Log("[Intro] Movie prepared and playing: " + clip.name);
             yield return Fade(1, 0, 0.5f);
             _skip.SetActive(true);
 
@@ -107,7 +107,7 @@ namespace GenerationMayhem.UI
             _skip.SetActive(false); _done = true;
             yield return Fade(0, 1, 0.4f); // sting already baked -> no duplicate Tag card
             CleanupVideo();
-            SceneManager.LoadScene(nextScene);
+            Debug.Log("[Intro] Loading " + nextScene); SceneManager.LoadScene(nextScene);
         }
 
 
@@ -115,7 +115,7 @@ namespace GenerationMayhem.UI
         {
             yield return Fade(1, 0, 0.2f);
             yield return Fade(0, 1, 0.3f);
-            SceneManager.LoadScene(nextScene);
+            Debug.Log("[Intro] Loading " + nextScene); SceneManager.LoadScene(nextScene);
         }
 
         void CleanupVideo()
@@ -184,7 +184,7 @@ namespace GenerationMayhem.UI
             for (float t = 0; t < 1.2f; t += Time.unscaledDeltaTime) { tag.color = new Color(1, 0.12f, 0.6f, t / 1.2f); yield return null; }
             _next = false; for (float t = 0; t < 2.5f && !_next; t += Time.unscaledDeltaTime) yield return null;
             _fade.transform.SetAsLastSibling(); yield return Fade(0, 1, 1f);
-            SceneManager.LoadScene(nextScene);
+            Debug.Log("[Intro] Loading " + nextScene); SceneManager.LoadScene(nextScene);
         }
 
         IEnumerator Fade(float a, float b, float d)
