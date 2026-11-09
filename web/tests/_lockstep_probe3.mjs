@@ -1,0 +1,21 @@
+import puppeteer from 'puppeteer-core';
+const OUT = '/workspace/gm-threejs-lockstep/shots/';
+const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
+const page = await browser.newPage(); await page.setViewport({ width: 1280, height: 720 });
+await page.evaluateOnNewDocument(() => { window.__gmNoAutoQuality = true; });
+await page.goto('http://localhost:4191/', { waitUntil: 'load', timeout: 180000 });
+await page.waitForFunction(() => window.__gm && window.__gm.ready, { timeout: 180000 });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+await page.mouse.click(640, 360); await sleep(400); await page.click('#btn-play'); await sleep(6000);
+const look = async (file, p, t) => { await page.evaluate((p, t) => { const g = window.__gm.game; g.setState('paused'); g.camera.position.set(...p); g.camera.lookAt(...t); g.camera.updateMatrixWorld(); document.querySelectorAll('body *').forEach((d) => { if (d.tagName !== 'CANVAS') d.style.visibility = 'hidden'; else d.style.visibility = 'visible'; }); }, p, t); await sleep(1500); await page.screenshot({ path: OUT + file }); await page.evaluate(() => { document.querySelectorAll('body *').forEach((d) => d.style.visibility = ''); window.__gm.game.setState('playing'); }); };
+await look('after3_dock_portal.png', [6, 4, 146], [13, 2.5, 160]);
+await look('after3_dock_portal_hi.png', [0, 14, 140], [13, 2.5, 160]);
+await page.evaluate(() => window.__gm.skipToL2()); await sleep(8000);
+await look('after3_hd_station.png', [-8, 6, 40], [-24, 9, 62]);
+await look('after3_hd_tower.png', [6, 6, 132], [22, 9, 155]);
+await look('after3_hd_chests.png', [0, 3.5, 36], [0, 0.5, 50]);
+// SFX in HD: shoot
+await page.evaluate(() => { window.__gm.game.introT = 0; window.__gm.setInvuln(9999); }); await sleep(6000);
+await page.mouse.move(640, 300); await page.mouse.down(); const s = []; for (let i = 0; i < 8; i++) { s.push(await page.evaluate(() => window.__gmAudioProbe())); await sleep(250); } await page.mouse.up();
+console.log('hd sfx while firing', Math.max(...s.map((x) => x.sfx)).toFixed(4), 'music', Math.max(...s.map((x) => x.music)).toFixed(4));
+await browser.close();

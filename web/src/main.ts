@@ -19,7 +19,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.info.autoReset = false;
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.1, 400);
+const camera = new THREE.PerspectiveCamera(50, 16 / 9, 0.15, 400); // LOCKSTEP 1107: Unity FOV 50 / near clip 0.15 m
 const input = new Input(canvas);
 
 // PERF: phones / low-core machines start on LOW so Carl/Jessica don't hit the mid-game auto-downgrade hitch
@@ -178,6 +178,7 @@ async function boot() {
   btn.disabled = false; btn.textContent = 'PLAY';
   (window as any).__gm = game.debugApi();
   (window as any).__gm.ready = true;
+  (window as any).__gmAudioProbe = () => sfx.levels(); // LOCKSTEP 1107 audio probe
   (window as any).__gm.quality = () => quality;
   (window as any).__gm.renderInfo = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures });
   (window as any).__gm.setQuality = (q: 'HIGH' | 'LOW') => { quality = q; applyQuality(); };
