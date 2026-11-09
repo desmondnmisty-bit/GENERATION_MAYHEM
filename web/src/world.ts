@@ -1,8 +1,11 @@
 import medicBotUrl from './assets/models/medic_bot.glb?url';
-import dockNightSkyUrl from './assets/sky/GM_Sky_DockNight_Equirect_PoleFade.png';
+// LOCKSTEP 1107: approved sky plates load from web/public/sky (same files Unity's Skybox/Panoramic materials use).
+const DOCK_SKY_URL = 'sky/GM_Sky_DockNight_Equirect_PoleFade.png';
+const HD_SKY_URL = 'sky/GM_Sky_Hyperdrive_Panorama_v001.jpg';
 import * as THREE from 'three';
 import { sweepClutter } from './hyperdriveSmash';
 import { Assets, dockPiece } from './assets';
+import { LOOT_URLS, WORLD_PROP_URLS, floorPad, hangProp, loadGlb, partColliders } from './lockstep';
 
 /** Live playable X — Dock widened (Misty 1104); HyperDrive clamps to greybox until Soft space-age redo. Mutable so setArena swaps them (ES live bindings). */
 export let X_MIN = -18;      // west container wall face (Dock)
@@ -71,7 +74,8 @@ export class World {
     X_MIN = hd ? X_MIN_HD : X_MIN_DOCK;
     X_EDGE = hd ? X_EDGE_HD : X_EDGE_DOCK;
     const m = this.sky.material as THREE.MeshBasicMaterial;
-    if (!this.dockSkyMap && m.map) this.dockSkyMap = m.map;
+    // (LOCKSTEP 1107 sky fix) dockSkyMap is now set by the Dock Night loader. Previously the procedural placeholder was captured here at
+    // boot, so every Play (resetRun -> setArena('dock')) swapped the approved plate back out for the canvas gradient.
     const fog = this.scene.fog as THREE.FogExp2;
     fog.color.set(hd ? 0x1a1030 : 0x101c22); fog.density = hd ? 0.0062 : 0.0075;
     this.hemi.color.set(hd ? 0x8a6cff : 0x5a7f96); this.hemi.groundColor.set(hd ? 0x2a0a2a : 0x1a1020);
@@ -82,10 +86,14 @@ export class World {
     this.scene.environmentIntensity = hd ? 0.8 : 0.55;
     if (hd) {
       if (this.hdSkyMap) { m.map = this.hdSkyMap; m.needsUpdate = true; }
-      else new THREE.TextureLoader().load('hyperdrive/sky.jpg', (t) => {
-        t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; t.repeat.set(2, 1); t.offset.y = -0.12;
-        this.hdSkyMap = t; if (this.arena === 'hyperdrive') { m.map = t; m.needsUpdate = true; }
-      });
+      else {
+        const onHd = (t: THREE.Texture) => {
+          t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; t.repeat.set(2, 1); t.offset.y = -0.12;
+          this.hdSkyMap = t; if (this.arena === 'hyperdrive') { m.map = t; m.needsUpdate = true; }
+        };
+        new THREE.TextureLoader().load(HD_SKY_URL, onHd, undefined, () => new THREE.TextureLoader().load('hyperdrive/sky.jpg', onHd));
+      }
+      this.hangHyperdriveProps();
       if (!this.hdGroup) {
         const g = new THREE.Group(); g.name = 'hyperdrive-greybox'; this.hdGroup = g;
         // Blender -Y approach -> rotate PI so the approach lane runs north along our lane; ring centre lands past the extraction gate.
@@ -148,6 +156,48 @@ export class World {
     for (const s of this.hdSmashables) s.box.active = active && !s.broken;
   }
 
+  // ------------------------------------------------------------------ LOCKSTEP 1107 hung world props
+  /** Dock purple portal GM_Portal_PurpleGate_raw (Unity Dockyard (28,0,27), 5 m, yaw 0). Unity's Dock is a plaza (x[-60,40] z[0,30]);
+   *  x=28 is open water in this berth lane, so the same slot is mapped proportionally into the Extraction Berth, east side, yaw 0, 5 m.
+   *  Unity excludes the portal from collision (WorldStructureCollision) — so does the web. No Hyperdrive portal slot. */
+  static readonly PORTAL = { x: 13, z: 160, yaw: 0, h: 5 };
+  private hangDockPortal() {
+    const grp = new THREE.Group(); grp.name = 'GM_WorldProps_Dockyard'; this.scene.add(grp);
+    loadGlb(WORLD_PROP_URLS.portal).then((g) => {
+      const P = World.PORTAL; const h = hangProp(g.scene, P.x, P.z, P.yaw, P.h, 'GM_Portal_PurpleGate_raw_Prop'); grp.add(h.holder);
+      console.info('[GM] Dock portal hung', P);
+    }).catch((e) => console.warn('[GM] Dock portal failed', e));
+  }
+  private hdPropsHung = false;
+  hdPropBoxes: Box[] = []; // building part colliders (diagnostics)
+  /** Hyperdrive only: planted Tripo buildings with deck-connected floor pads (Unity PlantHyperdriveBuildings) + gold/lava loot chests on
+   *  the existing smashable cover crates (Unity LootChestHang). Never in Dockyard; never at the old floating spots (-28,0,90)/(30,0,145). */
+  private hangHyperdriveProps() {
+    if (this.hdPropsHung) return; this.hdPropsHung = true;
+    const grp = new THREE.Group(); grp.name = 'HyperdriveBuildings'; this.hdWalk.add(grp);
+    const padMat = new THREE.MeshStandardMaterial({ color: 0x1f2128, roughness: 0.8, metalness: 0.3, polygonOffset: true, polygonOffsetFactor: -1 });
+    const live = () => this.arena === 'hyperdrive' && this.hdWalk.visible;
+    for (const B of [
+      { url: WORLD_PROP_URLS.station, name: 'GM_SpaceStation_raw_Prop', x: -24, z: 62, yaw: 0, h: 22, connectX: -13 },   // by Ring Hall
+      { url: WORLD_PROP_URLS.tower, name: 'GM_SciFi_Tower_raw_Prop', x: 22, z: 155, yaw: 180, h: 20, connectX: 11 },     // by Cockpit Core
+    ]) {
+      loadGlb(B.url).then((g) => {
+        const h = hangProp(g.scene, B.x, B.z, B.yaw, B.h, B.name); grp.add(h.holder);
+        const { pad, bounds } = floorPad(h, B.connectX, padMat); grp.add(pad);
+        const boxes = partColliders(h, this.colliders); for (const b of boxes) { b.active = live(); this.hdColliders.push(b); this.hdPropBoxes.push(b); }
+        console.info('[GM] HD building planted', B.name, 'minY', bounds.min.y.toFixed(3), 'h', (bounds.max.y - bounds.min.y).toFixed(2), 'colliders', boxes.length);
+      }).catch((e) => console.warn('[GM] HD building failed', B.name, e));
+    }
+    for (const C of [{ url: LOOT_URLS.gold, name: 'LootChest_WoodGold', x: 5, z: 42, yaw: 0.2 }, { url: LOOT_URLS.lava, name: 'LootChest_LavaGlyph', x: -4.5, z: 56, yaw: -0.3 }]) {
+      loadGlb(C.url).then((g) => {
+        const s = this.hdSmashables.find((q) => Math.abs((q.box.minX + q.box.maxX) / 2 - C.x) < 0.3 && Math.abs((q.box.minZ + q.box.maxZ) / 2 - C.z) < 0.3);
+        if (!s) { console.warn('[GM] loot chest slot missing', C.name); return; }
+        const h = hangProp(g.scene, C.x, C.z, THREE.MathUtils.radToDeg(C.yaw), 1.2, C.name);
+        for (const m of s.meshes) m.visible = false; // chest replaces the stand-in crate visual; the same smash box still breaks it
+        s.meshes.length = 0; s.meshes.push(h.holder); h.holder.visible = !s.broken; this.hdWalk.add(h.holder);
+      }).catch((e) => console.warn('[GM] loot chest failed', C.name, e));
+    }
+  }
   private hdWalk = new THREE.Group();
   hdRails: Box[] = [];
   private hdSkins: { mesh: THREE.Mesh; key: string; sx: number; sz: number; h: number; ry: number }[] = [];
@@ -357,6 +407,7 @@ export class World {
     this.buildPuddles();
     this.buildBreathePockets();
     this.buildHook();
+    this.hangDockPortal();
     for (const o of scene.children) if (!kids0.has(o) && (kids1.has(o) || !kids2.has(o))) this.dockDress.push(o);
     this.buildHyperdriveWalk();
     this.buildGate();
@@ -390,11 +441,12 @@ export class World {
     const yaw = parseFloat(q.get('skyYaw') ?? '0') * Math.PI / 180;
     const vOff = parseFloat(q.get('skyV') ?? '0.15');
     sky.rotation.y = yaw;
-    new THREE.TextureLoader().load(dockNightSkyUrl, (t) => {
+    new THREE.TextureLoader().load(DOCK_SKY_URL, (t) => {
       t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
       t.offset.y = -vOff; t.anisotropy = 4;
-      const m = sky.material as THREE.MeshBasicMaterial; m.map = t; m.needsUpdate = true;
-    });
+      this.dockSkyMap = t;
+      if (this.arena === 'dock') { const m = sky.material as THREE.MeshBasicMaterial; m.map = t; m.needsUpdate = true; }
+    }, undefined, (e) => console.warn('[GM] Dock Night sky plate failed — procedural night gradient stays', e));
   }
 
   // Aerial grind rails: twin gantry rails overhead the skate lane, chevrons scroll north = the route.
@@ -411,7 +463,7 @@ export class World {
     // gantry portals every berth-ish
     for (let z = z0 + 4; z < z1; z += 14) {
       const beam = new THREE.Mesh(new THREE.BoxGeometry(X_EDGE - X_MIN - 1, 0.5, 0.5), legMat); beam.position.set((X_MIN + X_EDGE) / 2, H + 0.6, z); this.scene.add(beam);
-      for (const x of [X_MIN + 0.6, X_EDGE - 0.6]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.4, H + 0.6, 0.4), legMat); leg.position.set(x, (H + 0.6) / 2, z); this.scene.add(leg); }
+      for (const x of [X_MIN + 0.6, X_EDGE - 0.6]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.4, H + 0.6, 0.4), legMat); leg.position.set(x, (H + 0.6) / 2, z); this.scene.add(leg); this.addBox(x, z, 0.45, 0.45, H + 0.6); } // LOCKSTEP 1107: gantry legs solid
       const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.15, 0.3), new THREE.MeshBasicMaterial({ color: 0xff1fcf, fog: false })); lamp.position.set(0, H + 0.3, z); this.scene.add(lamp);
     }
     // scrolling chevron ribbon between the rails, pointing north (+Z)
@@ -439,6 +491,7 @@ export class World {
     for (let z = 4; z < 176; z += 18) {
       const x = X_EDGE - 0.9;
       const p = new THREE.Mesh(pole, poleMat); p.position.set(x, 3, z); p.castShadow = true; this.scene.add(p);
+      this.addBox(x, z, 0.26, 0.26, 6); // LOCKSTEP 1107: lamp pole is solid
       const h = new THREE.Mesh(head, headMat); h.position.set(x - 0.4, 6, z); this.scene.add(h);
       const g = new THREE.Mesh(pool, poolMat); g.rotation.x = -Math.PI / 2; g.position.set(x - 1.5, 0.03, z); this.scene.add(g);
       this.lightAnchors.push({ pos: new THREE.Vector3(x - 0.6, 5.6, z), color: 0xffa040, intensity: 22, dist: 18 });
@@ -452,7 +505,7 @@ export class World {
     const archMat = new THREE.MeshBasicMaterial({ color: 0x40e0ff });
     const bandMat = new THREE.MeshBasicMaterial({ color: 0x40e0ff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false });
     for (const z of [30, 70, 110, 150]) {
-      for (const x of [X_MIN + 1.2, X_EDGE - 0.4]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.25, 5, 0.25), archMat); post.position.set(x, 2.5, z); this.scene.add(post); }
+      for (const x of [X_MIN + 1.2, X_EDGE - 0.4]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.25, 5, 0.25), archMat); post.position.set(x, 2.5, z); this.scene.add(post); this.addBox(x, z, 0.3, 0.3, 5); } // LOCKSTEP 1107: arch posts solid
       const top = new THREE.Mesh(new THREE.BoxGeometry(X_EDGE - X_MIN - 1.6, 0.2, 0.25), archMat); top.position.set((X_MIN + X_EDGE) / 2 + 0.4, 5, z); this.scene.add(top);
       const band = new THREE.Mesh(new THREE.PlaneGeometry(X_EDGE - X_MIN - 1.6, 1.2), bandMat); band.rotation.x = -Math.PI / 2; band.position.set((X_MIN + X_EDGE) / 2 + 0.4, 0.025, z); this.scene.add(band);
       this.lightAnchors.push({ pos: new THREE.Vector3(0, 4.5, z), color: 0x40e0ff, intensity: 16, dist: 16 });
@@ -540,20 +593,21 @@ export class World {
       // bridge from rail end → east catwalk (2.4): drop off the rail onto it
       const bz = z2r + 2.5, bx0 = rx - 0.6, bx1 = 15.2, bw = bx1 - bx0, bcx = (bx0 + bx1) / 2;
       const bt = new THREE.Mesh(new THREE.BoxGeometry(bw, 0.25, 3), plank); bt.position.set(bcx, cwH - 0.12, bz); bt.castShadow = bt.receiveShadow = true; g.add(bt);
-      for (const px of [bx0 + 0.2, bcx]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.16, cwH, 0.16), scaf); p.position.set(px, cwH / 2, bz); g.add(p); }
+      for (const px of [bx0 + 0.2, bcx]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.16, cwH, 0.16), scaf); p.position.set(px, cwH / 2, bz); g.add(p); this.pocketBoxes.push(this.addBox(px, bz, 0.2, 0.2, cwH)); } // LOCKSTEP 1107: posts are solid
       const bb = this.addBox(bcx, bz, bw, 3, cwH); bb.ride = 'top'; bb.minY = cwH - 0.3; this.pocketBoxes.push(bb);
       // east catwalk extension so the bridge always lands on catwalk (zone catwalk is z1-13..z1-5)
     }
     // gun-angle towers: elevated platforms ~7m from each of the 4 Dock edge guns (Brianna gauntlet / Vixen shots from height). Not on the berth line.
     for (const [x, z, h] of [[11, 12, 3.0], [-10.5, 60, 3.0], [11, 106, 3.0], [-10.5, 146, 3.0]] as const) {
       const top = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 4), plank); top.position.set(x, h - 0.15, z); top.castShadow = top.receiveShadow = true; g.add(top);
-      for (const [dx, dz] of [[-1.3, -1.8], [1.3, -1.8], [-1.3, 1.8], [1.3, 1.8]]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.18, h, 0.18), scaf); p.position.set(x + dx, h / 2, z + dz); g.add(p); }
+      for (const [dx, dz] of [[-1.3, -1.8], [1.3, -1.8], [-1.3, 1.8], [1.3, 1.8]]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.18, h, 0.18), scaf); p.position.set(x + dx, h / 2, z + dz); g.add(p); this.pocketBoxes.push(this.addBox(x + dx, z + dz, 0.22, 0.22, h - 0.3)); } // LOCKSTEP 1107: legs are solid
       const rl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 4), trim); rl.position.set(x + Math.sign(x) * 1.45, h + 0.9, z); g.add(rl);
       const tb = this.addBox(x, z, 3, 4, h); tb.ride = 'top'; tb.minY = h - 0.4; this.pocketBoxes.push(tb);
       ramp(x, z - 2 - 6, 6, h, 3, plank);
     }
     // civilians (ambient, not cast/combatants): dock workers in lived-in spots — hi-vis vests, idle bob/work loop
-    for (const [x, z, ry, vest] of [[-16.5, 58, Math.PI / 2, 0xff8a1a], [-15.8, 142, Math.PI / 2, 0xff8a1a]] as const) this.addCiv(g, x, z, ry, vest, 0x2a3440);
+    // LOCKSTEP 1107 (Unity Dock: no visible pill-shaped capsule placeholders): the two capsule dock-worker civs are no longer placed on Dock.
+    // HD keeps its 3 ambient civ extras, same as Unity.
     // heal station in each pocket: glowing emerald med crate (one charge per berth, recharges on run reset)
     const medMat = new THREE.MeshStandardMaterial({ color: 0x1fd18a, emissive: 0x1fd18a, emissiveIntensity: 1.6 });
     for (const zone of ZONES) {
@@ -748,6 +802,7 @@ export class World {
       const g = new THREE.Group();
       for (const x of [X_MIN - 2, X_EDGE - 0.8]) for (const dz of [-3.5, 3.5]) {
         const leg = new THREE.Mesh(new THREE.BoxGeometry(0.9, 18, 0.9), yellow); leg.position.set(x, 9, z + dz); g.add(leg);
+        this.addBox(x, z + dz, 0.95, 0.95, 18); // LOCKSTEP 1107: full-height leg collider (foot box below is only 2 m)
       }
       for (const x of [X_MIN - 2, X_EDGE - 0.8]) { const t = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 8.2), yellow); t.position.set(x, 1, z); g.add(t); this.addBox(x, z, 1.4, 8.4, 2); }
       for (const dz of [-3.5, 3.5]) { const beam = new THREE.Mesh(new THREE.BoxGeometry(32, 1.4, 1.1), yellow); beam.position.set(-1, 18.5, z + dz); g.add(beam); }
@@ -916,6 +971,7 @@ export class World {
     const housing = new THREE.MeshStandardMaterial({ color: 0x18181c, metalness: 0.7, roughness: 0.4 });
     for (const x of [-4.2, 4.2]) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(0.9, 7, 0.9), housing); p.position.set(x, 3.5, 0); p.castShadow = true; g.add(p);
+      this.addBox(x, GATE_Z, 0.95, 0.95, 7.6); // LOCKSTEP 1107: gate pillars were visual-only — skate through the opening, not the posts
       const s = new THREE.Mesh(new THREE.BoxGeometry(0.25, 6.6, 0.25), stripMat); s.position.set(x + (x < 0 ? 0.5 : -0.5), 3.5, 0); g.add(s);
     }
     const top = new THREE.Mesh(new THREE.BoxGeometry(9.3, 0.9, 0.9), housing); top.position.set(0, 7.2, 0); g.add(top);

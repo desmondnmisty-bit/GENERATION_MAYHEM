@@ -1,16 +1,14 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import wrVixenUrl from './assets/models/warrig/GM_Vixen_WarRig_v010_Soft.glb?url';
-import wrPaytonUrl from './assets/models/warrig/GM_Payton_WarRig_v006_Soft.glb?url';
-import wrBriannaUrl from './assets/models/warrig/GM_Brianna_WarRig_v005_Soft.glb?url';
-import wrKaileeUrl from './assets/models/warrig/GM_Kailee_WarRig_v006_Soft.glb?url';
-const WARRIG_URLS: Record<string, string> = { vixen: wrVixenUrl, payton: wrPaytonUrl, brianna: wrBriannaUrl, kailee: wrKaileeUrl };
+// LOCKSTEP 1107 (Unity wire/debug pass): Prepared review war-rigs replace the hung Soft slots. Soft GLBs stay in
+// src/assets/models/warrig/ unused; there is deliberately NO silent swap back to Soft (load failure keeps the old body + stand-in tires).
+import { PREPARED_WARRIG_URLS as WARRIG_URLS, SLITHER_PARTS_URL, LOOT_URLS, hangViperSlot, inPlaceClip, tickPreparedRig, type PreparedRig, type ViperSlot } from './lockstep';
 import sonicUrl from './assets/models/vixen_sonic_resonator.glb?url';
 import bGauntLUrl from './assets/models/brianna_gauntlet_L.glb?url';
 import bGauntRUrl from './assets/models/brianna_gauntlet_R.glb?url';
 import kaileeGunUrl from './assets/models/kailee_40cal.glb?url';
 import * as THREE from 'three';
 import { Actor, Enemy, ProjectilePool, angleDiff, angleLerp, dirFromYaw, type HitOpts , ENEMY_FINISHERS, ENEMY_DEFS } from './actors';
-import { Assets } from './assets';
+import { Assets, addFlash } from './assets';
 import { sfx } from './audio';
 import { Beam, DamageNumbers, Particles, Transients } from './fx';
 import { Input } from './input';
@@ -146,7 +144,7 @@ export class Game {
     k.cm.pivot.rotation.x = 0; k.cm.pivot.position.y = 0;
     for (const al of this.allies) { const a = al.a; a.pos.set(al.side, 0, z - al.back); a.vel.set(0, 0, 0); a.heading = 0; a.y = 0; a.vy = 0; a.grounded = true; a.alive = true; a.cm.pivot.rotation.x = 0; a.cm.pivot.position.y = 0; }
     this.p.fwdSpeed = 0; this.p.lastSafe.copy(v.pos); this.camYaw = 0; this.diving = false;
-    this.camera.position.set(0, 3, z - 7);
+    this.camera.position.set(0, 1.15 + 4 * Math.sin(Game.CAM.groundPitch), z - 4 * Math.cos(Game.CAM.groundPitch)); this.camDist = Game.CAM.groundDist; this.camPitchCur = Game.CAM.groundPitch; this.camPitch = Game.CAM.pitch0;
   }
   resetRun() {
     this.resetApex();
@@ -268,7 +266,7 @@ export class Game {
       COM_L2_0: ['KAMYRN', 'Swarm on the approach — Scar Swarm. Stay tight.'], COM_L2_1: ['LILI', 'Cobra in the Ring Hall. Hood Strike — watch the hood.'],
       COM_L2_2: ['KAMYRN', 'Jet Fang diving the corridor. Hop it.'], COM_L2_3: ['LILI', "Hive's nest is in the core. Bring everybody home, Grandma."],
       COM_KAM_01: ['KAMYRN', "Vixen on coms. Berth's hot — keep skating."], COM_LIL_01: ['LILI', "Grandma you got this. Don't stop."],
-      COM_KAM_02: ['KAMYRN', 'IRS on your six. Check left.'], COM_LIL_02: ['LILI', "Kailee's with you — stay loud."],
+      COM_KAM_02: ['KAMYRN', 'Iron Rose Syndicate on your six. Check left.'], COM_LIL_02: ['LILI', "Kailee's with you — stay loud."],
       COM_KAM_03: ['KAMYRN', "Slither's nest ahead. End him."], COM_LIL_03: ['LILI', 'Grandma? Please get up.'],
       COM_KAM_04: ['KAMYRN', "Berth cleared. Next room. Don't freeze."], COM_LIL_04: ['LILI', "You're almost home. Bring Mom back."],
     };
@@ -308,7 +306,7 @@ export class Game {
     const spokeG = new THREE.BoxGeometry(T * 1.3, Math.max(0.01, T * 0.12), (R - T * 0.6) * 1.9);
     const lugG = new THREE.BoxGeometry(T * 1.9, T * 0.35, T * 0.5);
     for (const sx of [-X, X]) {
-      const w = new THREE.Group(); w.position.set(sx, R + T, 0); kit.add(w);
+      const w = new THREE.Group(); w.name = 'warrig-standin-tire'; w.position.set(sx, R + T, 0); kit.add(w);
       const t = new THREE.Mesh(tg, rubber); t.rotation.y = Math.PI / 2; w.add(t);
       const r = new THREE.Mesh(rimG, rim); r.rotation.z = Math.PI / 2; w.add(r);
       const c = new THREE.Mesh(capG, neon); c.rotation.z = Math.PI / 2; w.add(c);
@@ -333,21 +331,35 @@ export class Game {
       w.light.intensity = w.lb * boost * flick;
     }
   }
-  /** Soft Soft Soft Soft mesh GO (Misty pt456u): hang stamped Tripo war-rig over the rig; hide the old skinned body. Scaled to the rig's height, feet on root. */
-  hangWarRig(root: THREE.Object3D, key: string) {
+  /** LOCKSTEP 1107: hang the Prepared review war-rig (skinned, 26-28 clips) over the rig; hide the old skinned body.
+   *  Scaled to the rig's height, feet on root. Mirrors Unity WarRigTireStandIn.Apply + PreparedWarRigAnimator:
+   *  Idle_Skate / Locomotion_Fwd at 1.2 m/s, root motion off, and the procedural stand-in tires are hidden so the
+   *  model's own review wheels show (Vixen's hollow bicycle-spoke wheels are a KNOWN review defect, kept on purpose). */
+  preparedRigs: PreparedRig[] = [];
+  hangWarRig(root: THREE.Object3D, key: string, actor?: Actor) {
     const url = WARRIG_URLS[key]; if (!url) return;
     root.updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
     const bb0 = new THREE.Box3(); root.traverse((o) => { const m = o as THREE.SkinnedMesh; if (m.isSkinnedMesh) { m.geometry.computeBoundingBox(); bb0.union(m.geometry.boundingBox!.clone().applyMatrix4(m.matrixWorld).applyMatrix4(inv)); } });
     const H = bb0.isEmpty() ? 1.7 : Math.max(1.2, bb0.max.y - bb0.min.y);
     new GLTFLoader().load(url, (g) => {
-      const m = g.scene; const bb = new THREE.Box3().setFromObject(m); const sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+      const m = g.scene; m.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(m); const sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
       const sc = H / sz.y; m.scale.setScalar(sc); m.position.set(-c.x * sc, -bb.min.y * sc, -c.z * sc);
-      const holder = new THREE.Group(); holder.name = key + '-warrig-mesh'; holder.add(m);
-      holder.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh) { me.castShadow = true; me.receiveShadow = true; } });
+      const holder = new THREE.Group(); holder.name = key + '-warrig-mesh'; holder.userData.prepared = true; holder.add(m);
+      const cm = actor?.cm;
+      holder.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh) { me.castShadow = true; me.receiveShadow = true; me.frustumCulled = false;
+        if (cm) { const arr = Array.isArray(me.material) ? me.material : [me.material]; for (const mm of arr) { addFlash(mm); cm.mats.push(mm); } } } });
       root.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) o.visible = false; });
-      root.add(holder); console.info('[GM] war-rig mesh hung:', key, 'h', H.toFixed(2));
-    }, undefined, (e) => console.error('[GM] WAR-RIG MESH FAILED — keeping old body for', key, e));
+      root.traverse((o) => { if (o.name === 'warrig-standin-tire') o.visible = false; }); // Unity: no procedural substitute tires over the review wheels
+      root.add(holder);
+      if (g.animations.length) {
+        const mixer = new THREE.AnimationMixer(m); const actions: Record<string, THREE.AnimationAction> = {};
+        for (const clip of g.animations) actions[clip.name] = mixer.clipAction(inPlaceClip(clip));
+        const r: PreparedRig = { key, mixer, actions, state: '', speedOf: () => actor ? actor.speed : 0 };
+        tickPreparedRig(r, 0); this.preparedRigs.push(r);
+      }
+      console.info('[GM] Prepared war-rig hung:', key, 'h', H.toFixed(2), 'clips', g.animations.length);
+    }, undefined, (e) => console.error('[GM] PREPARED WAR-RIG FAILED — keeping old body + stand-in tires for', key, e));
   }
   // TEMP web stand-in until concept/3D redo: oversized skate wheels + chunky Sophisticated-Brutality cannon.
   addVixenKit(a: Actor) {
@@ -377,7 +389,7 @@ export class Game {
     });
     kit.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
     root.add(kit);
-    this.hangWarRig(root, 'vixen');
+    this.hangWarRig(root, 'vixen', a);
   }
   gatlingSpin = 0;
   /** Web stand-ins until Soft models: Brianna thermal arm gauntlets + chest plate + BB shoulder seeker pod; Payton Gatling + big amp wheels (Vixen pattern). */
@@ -417,7 +429,7 @@ export class Game {
     }
     kit.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
     root.add(kit);
-    this.hangWarRig(root, al.key);
+    this.hangWarRig(root, al.key, al.a);
   }
   // Kailee pearl .40 (3D 1103, LOD1) in right hand + thin red underbarrel laser. Replaces stand-in K pistol.
   kaileeMuzzle = new THREE.Object3D();
@@ -438,7 +450,7 @@ export class Game {
     const laser = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 1.2, 4).rotateX(Math.PI / 2).translate(0, 0, 0.6),
       new THREE.MeshBasicMaterial({ color: 0xff1010, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     laser.position.set(0, -0.035, L * 0.5); laser.name = 'kailee-laser'; gun.add(laser);
-    a.cm.root.traverse((o) => { if (/WarRig_Wheel/i.test(o.name)) o.visible = false; }); const wk = new THREE.Group(); wk.name = 'kailee-wheels'; this.addTruckTires(wk, 0.16, 0.06, 0.18, 0xff4fa0); a.cm.root.add(wk); this.hangWarRig(a.cm.root, 'kailee'); // Misty: Kailee bigger, still under Brianna
+    a.cm.root.traverse((o) => { if (/WarRig_Wheel/i.test(o.name)) o.visible = false; }); const wk = new THREE.Group(); wk.name = 'kailee-wheels'; this.addTruckTires(wk, 0.16, 0.06, 0.18, 0xff4fa0); a.cm.root.add(wk); this.hangWarRig(a.cm.root, 'kailee', a); // Misty: Kailee bigger, still under Brianna
   }
   addChaos(n: number, reason?: string) {
     if (this.sling.phase !== 'none') return;
@@ -563,6 +575,7 @@ export class Game {
   }
 
   spawnEnemy(type: Spawn, pos?: THREE.Vector3) {
+    if (this.level === 1 && type === 'v') type = 'e'; // LOCKSTEP 1107 (Unity Bots/GameFlow hardening): Dockyard refuses Vipers — Iron Rose Syndicate only
     const zone = ZONES[this.wave];
     const p = pos ? pos.clone() : new THREE.Vector3(X_MIN + 4 + Math.random() * (X_EDGE - X_MIN - 8), 0, Math.min(zone.z1 - 3, Math.max(zone.z0 + 6, this.vixen.pos.z + 14 + Math.random() * 14)));
     // keep spawns off colliders
@@ -580,6 +593,8 @@ export class Game {
     if (this.level === 2 && type === 'v') {
       const sq = VIPER_SQUADS[Math.min(3, this.wave)] ?? VIPER_SQUADS[this.viperSeq++ % 4];
       (e as any).squad = sq.squad; (e as any).fin = sq.fin;
+      // LOCKSTEP 1107: existing HD named slots get their own meshes (Swarm / Cobra-Hood Strike / Fang / 56-part redsuit Hive)
+      hangViperSlot(e.cm.pivot, e.cm.mats, sq.squad as ViperSlot, e.cm.height + 0.06);
       if (this.viperSeq++ % 3 === 0) this.dmg.spawn(tmp.copy(p).setY(2.4), sq.squad, 'big');
     }
     if (type === 'e' || type === 'f') this.irsReadable(e, type);
@@ -652,6 +667,7 @@ export class Game {
   // ------------------------------------------------------------------ main update
   update(rawDt: number) {
     this.tickTires(rawDt);
+    for (const r of this.preparedRigs) tickPreparedRig(r, rawDt);
     if (this.state !== 'playing') { this.updateCamera(rawDt, true); return; }
     const dt = Math.min(rawDt, 1 / 30);
     this.time += dt; this.stats.time += dt;
@@ -1673,9 +1689,9 @@ export class Game {
         for (let i = 0; i < 3; i++) {
           const a = (i / 3) * Math.PI * 2;
           const p = new THREE.Vector3(THREE.MathUtils.clamp(e.pos.x + Math.sin(a) * 4, X_MIN + 2, X_EDGE - 2.5), 0, e.pos.z + Math.cos(a) * 4);
-          this.spawnEnemy('v', p);
+          this.spawnEnemy(this.level === 2 ? 'v' : 'e', p); // LOCKSTEP 1107: no Vipers on Dock — Falcon's call brings Iron Rose Syndicate Brutes there
         }
-        this.banner('FALCON CALLS THE VIPERS', '', 1.4);
+        this.banner(this.level === 2 ? 'FALCON CALLS THE VIPERS' : 'FALCON CALLS THE IRON ROSE', '', 1.4);
         break;
       }
     }
@@ -1788,7 +1804,7 @@ export class Game {
         this.waveActive = true; this.batch = 0;
         const w = this.waves[this.wave];
         this.banner(w.title, w.sub, 1.6); sfx.waveStart();
-        if (this.level === 2) this.coms('COM_L2_' + this.wave); else if (this.wave === 1) this.coms('COM_KAM_02'); else if (this.wave === 2) this.coms('COM_LIL_02'); else if (this.wave === 3) this.coms('COM_KAM_03');
+        if (this.level === 2) this.coms('COM_L2_' + this.wave); else if (this.wave === 1) this.coms('COM_KAM_02'); else if (this.wave === 2) this.coms('COM_LIL_02'); // LOCKSTEP 1107: stale Dock Slither line (COM_KAM_03) no longer fires on Dock
         this.setObjective(this.wave === 3 ? (this.level === 2 ? 'Cockpit Core: break the Hive nest' : 'Break Falcon and the Iron Rose escort') : `Clear ${this.zoneName(this.wave)} — then the gate opens`);
       }
       return;
@@ -1928,7 +1944,9 @@ export class Game {
         m.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh) { me.castShadow = true; me.frustumCulled = false; } });
         this.slitherModel = m; if (this.slither) { this.slither.clear(); this.slither.add(m); }
       };
-      L.load('hyperdrive/slither_boss.glb', done, undefined, (e) => { console.warn('[GM] slither boss glb failed, trying LOD0', e); L.load('hyperdrive/slither_lod0.glb', done, undefined, () => console.warn('[GM] slither LOD0 failed — procedural stand-in')); });
+      // LOCKSTEP 1107: six-part pink lizard Slither (Unity GM_Slither_Parts) first; older boss GLB only if that fails to load.
+      const old = () => L.load('hyperdrive/slither_boss.glb', done, undefined, (e) => { console.warn('[GM] slither boss glb failed, trying LOD0', e); L.load('hyperdrive/slither_lod0.glb', done, undefined, () => console.warn('[GM] slither LOD0 failed — procedural stand-in')); });
+      L.load(SLITHER_PARTS_URL, (gl) => { gl.scene.name = 'GM_Slither_Parts'; done(gl); }, undefined, (e) => { console.warn('[GM] six-part Slither failed, using older boss mesh', e); old(); });
     });
   }
   private slitherStandIn() {
@@ -2267,6 +2285,9 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ camera
+  static readonly CAM = { groundDist: 4, airDist: 5, groundPitch: THREE.MathUtils.degToRad(12), airPitch: THREE.MathUtils.degToRad(16), height: 1.15,
+    combatRadius: 10, combatMinEnemies: 3, combatPerM: 0.12, combatMaxDist: 5.8, distDamp: 0.35, pitchDamp: 0.3, fov: 50, near: 0.15, pitch0: 0.18 };
+  camDist = 4; camPitchCur = THREE.MathUtils.degToRad(12);
   updateCamera(dt: number, idle: boolean) {
     const v = this.vixen, inp = this.input, cam = this.camera;
     if (idle) {
@@ -2292,18 +2313,30 @@ export class Game {
     if (inp.down('ArrowDown')) this.camPitch = Math.min(0.7, this.camPitch + dt);
     if (!inp.locked && !manual && v.speed > 2 && this.sling.phase === 'none') this.camYaw = angleLerp(this.camYaw, v.heading, Math.min(1, dt * 1.8));
     const fwd = dirFromYaw(this.camYaw, tmp);
-    const dist = 5.2 + Math.min(5, v.speed) * 0.08; // 1105 Misty: pull cam in
-    const hgt = 2.7 + this.camPitch * 3.4;
-    const target = tmp2.set(v.pos.x - fwd.x * dist, v.y * 0.5 + hgt, v.pos.z - fwd.z * dist);
+    // LOCKSTEP 1107 (Unity TraversalCameraRig, both levels incl. Hyperdrive): closer follow.
+    // ground 4 m / 12 deg, air 5 m / 16 deg, height 1.15 m (half at the look point, half on top), combat pull-back capped at 5.8 m.
+    const C = Game.CAM; const air = !v.grounded && v.y > 0.25;
+    let wantDist = air ? C.airDist : C.groundDist;
+    const wantPitch = (air ? C.airPitch : C.groundPitch) + (this.camPitch - C.pitch0); // mouse/arrow pitch stays as an offset
+    // combat lock: boss or >= 3 enemies within 10 m -> frame the group, never past 5.8 m
+    { let n = 0, boss = false, cx = v.pos.x, cz = v.pos.z, k = 1; const grp: Enemy[] = [];
+      for (const e of this.enemies) { if (e.state === 'dead') continue; if (Math.hypot(e.pos.x - v.pos.x, e.pos.z - v.pos.z) < C.combatRadius) { n++; grp.push(e); if (e.def.kind === 'falcon') boss = true; cx += e.pos.x; cz += e.pos.z; k++; } }
+      if (boss || n >= C.combatMinEnemies) { cx /= k; cz /= k; let spread = Math.hypot(v.pos.x - cx, v.pos.z - cz); for (const e of grp) spread = Math.max(spread, Math.hypot(e.pos.x - cx, e.pos.z - cz));
+        wantDist = Math.min(C.combatMaxDist, Math.max(wantDist, C.groundDist + spread * C.combatPerM * 2)); } }
+    this.camDist += (wantDist - this.camDist) * Math.min(1, dt / C.distDamp);
+    this.camPitchCur += (THREE.MathUtils.clamp(wantPitch, -0.05, 0.9) - this.camPitchCur) * Math.min(1, dt / C.pitchDamp);
+    const dist = this.camDist, pc = Math.cos(this.camPitchCur), ps = Math.sin(this.camPitchCur);
+    const look = tmp3.set(v.pos.x, v.y + C.height * 0.5, v.pos.z); // lookPoint = focus + up*(groundHeight*0.5)
+    const target = tmp2.set(look.x - fwd.x * dist * pc, look.y + dist * ps + C.height * 0.5, look.z - fwd.z * dist * pc);
     target.x = Math.max(target.x, X_MIN + 0.8);
     cam.position.lerp(target, Math.min(1, dt * 9));
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     const sh = this.trauma * this.trauma;
-    const look = tmp3.set(v.pos.x + fwd.x * 4.5, 1.0 + v.y * 0.5, v.pos.z + fwd.z * 4.5);
     if (this.camFocusT > 0 && this.camFocus) { this.camFocusT -= dt; const w = Math.min(1, this.camFocusT * 2) * 0.45; look.lerp(tmp.set(this.camFocus.pos.x, 1.2, this.camFocus.pos.z), w); }
-    cam.lookAt(look);
+    cam.lookAt(look.x, look.y + C.height * 0.5, look.z); // Unity rot passes the ray through lookPoint + half height
     if (sh > 0) { cam.position.x += (Math.random() - 0.5) * sh * 0.9; cam.position.y += (Math.random() - 0.5) * sh * 0.9; cam.rotation.z += (Math.random() - 0.5) * sh * 0.08; }
-    const fov = 58 + Math.min(8, v.speed) * 0.6 + this.fovKick;
+    if (cam.near !== C.near) { cam.near = C.near; cam.updateProjectionMatrix(); }
+    const fov = C.fov + this.fovKick; // Unity FOV 50 both levels (speed widen removed; transient kicks kept)
     if (Math.abs(cam.fov - fov) > 0.05) { cam.fov += (fov - cam.fov) * Math.min(1, dt * 6); cam.updateProjectionMatrix(); }
   }
 

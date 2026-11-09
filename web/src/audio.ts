@@ -39,6 +39,9 @@ export class Sfx {
     this.master.connect(comp); comp.connect(ctx.destination);
     this.sfxBus = ctx.createGain(); this.sfxBus.connect(this.master);
     this.musicBus = ctx.createGain(); this.musicBus.gain.value = 0.6; this.musicBus.connect(this.master); // capped low per Misty 11-03 (connect was commented out by accident = silent music)
+    // LOCKSTEP 1107: silent taps so the headless probe can confirm music + SFX actually reach the output in Dock and Hyperdrive.
+    this.musicTap = ctx.createAnalyser(); this.musicTap.fftSize = 1024; this.musicBus.connect(this.musicTap);
+    this.sfxTap = ctx.createAnalyser(); this.sfxTap.fftSize = 1024; this.sfxBus.connect(this.sfxTap);
     const len = ctx.sampleRate * 1.5;
     this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
@@ -49,6 +52,12 @@ export class Sfx {
     this.skateGain = ctx.createGain(); this.skateGain.gain.value = 0;
     src.connect(this.skateFilter); this.skateFilter.connect(this.skateGain); this.skateGain.connect(this.sfxBus);
     src.start();
+  }
+  musicTap?: AnalyserNode; sfxTap?: AnalyserNode;
+  /** RMS of the music / SFX buses right now (debug probe only). */
+  levels() {
+    const rms = (a?: AnalyserNode) => { if (!a) return 0; const d = new Float32Array(a.fftSize); a.getFloatTimeDomainData(d); let q = 0; for (const v of d) q += v * v; return Math.sqrt(q / d.length); };
+    return { state: this.ctx?.state ?? 'none', music: rms(this.musicTap), sfx: rms(this.sfxTap) };
   }
   setMuted(m: boolean) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : 0.7; }
   get t() { return this.ctx ? this.ctx.currentTime : 0; }
