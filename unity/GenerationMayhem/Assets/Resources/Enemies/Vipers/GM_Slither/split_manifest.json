@@ -1,0 +1,98 @@
+{
+  "source": "/workspace/generation-mayhem/tripo_drop/misty_enemies_1106/ready/GM_Slither.glb",
+  "prefix": "GM_Slither",
+  "cuts": {
+    "neck_z": 0.875,
+    "hip_z": 0.5,
+    "arm_x_thresh": 0.2
+  },
+  "bounds": {
+    "xmin": -0.3167906403541565,
+    "xmax": 0.3168056607246399,
+    "ymin": -0.16124087572097778,
+    "ymax": 0.1612815260887146,
+    "zmin": -0.00018650348647497594,
+    "zmax": 0.9804383516311646
+  },
+  "parts": {
+    "Head": {
+      "vertices": 4812,
+      "faces": 6655,
+      "triangles": 6655,
+      "materials": 1,
+      "file": "/workspace/generation-mayhem/tripo_drop/misty_enemies_1106/split/GM_Slither/GM_Slither_Head.glb",
+      "bytes": 17871132
+    },
+    "Torso": {
+      "vertices": 16338,
+      "faces": 22461,
+      "triangles": 22461,
+      "materials": 1,
+      "file": "/workspace/generation-mayhem/tripo_drop/misty_enemies_1106/split/GM_Slither/GM_Slither_Torso.glb",
+      "bytes": 18335124
+    },
+    "Arm_L": {
+      "vertices": 7701,
+      "faces": 10899,
+      "triangles": 10899,
+      "materials": 1,
+      "file": "/workspace/generation-mayhem/tripo_drop/misty_enemies_1106/split/GM_Slither/GM_Slither_Arm_L.glb",
+      "bytes": 17988888
+    },
+    "Arm_R": {
+      "vertices": 7993,
+      "faces": 11378,
+      "triangles": 11378,
+      "materials": 1,
+      "file": "/workspace/generation-mayhem/tripo_drop/misty_enemies_1106/split/GM_Slither/GM_Slither_Arm_R.glb",
+      "bytes": 18001292
+    },
+    "Leg_L": {
+      "vertices": 8505,
+      "faces": 11863,
+      "triangles": 11863,
+      "materials": 1,
+      "file": "/workspace/generation-mayhem/tripo_drop/misty_enemies_1106/split/GM_Slither/GM_Slither_Leg_L.glb",
+      "bytes": 18021080
+    },
+    "Leg_R": {
+      "vertices": 9310,
+      "faces": 12466,
+      "triangles": 12466,
+      "materials": 1,
+      "file": "/workspace/generation-mayhem/tripo_drop/misty_enemies_1106/split/GM_Slither/GM_Slither_Leg_R.glb",
+      "bytes": 18050324
+    }
+  },
+  "notes": [
+    "Helmet/antenna kept with Head (welded). Claws/teeth kept with limbs/head.",
+    "Belt pouches / chest grenade / shoulder pads remain on Torso (welded into torso shell; not peeled).",
+    "Cut planes leave open boundaries at neck/shoulders/hips \u2014 expected for rigging.",
+    "No skins/armatures/animations on source; parts are static mesh objects."
+  ],
+  "combined": {
+    "file": "/workspace/generation-mayhem/tripo_drop/misty_enemies_1106/split/GM_Slither/GM_Slither_Parts.glb",
+    "bytes": 19886744,
+    "objects": [
+      "Head",
+      "Torso",
+      "Arm_L",
+      "Arm_R",
+      "Leg_L",
+      "Leg_R"
+    ]
+  },
+  "layout": {
+    "file": "/workspace/generation-mayhem/tripo_drop/misty_enemies_1106/split/GM_Slither/GM_Slither_Parts_Layout.glb",
+    "bytes": 19886948
+  },
+  "color_layout": {
+    "file": "/workspace/generation-mayhem/tripo_drop/misty_enemies_1106/split/GM_Slither/GM_Slither_Parts_ColorLayout.glb",
+    "bytes": 2212048
+  },
+  "fbx": {
+    "file": "/workspace/generation-mayhem/tripo_drop/misty_enemies_1106/split/GM_Slither/GM_Slither_Parts.fbx",
+    "bytes": 8323292,
+    "note": "FBX from glTF PBR; Unity may need metallic-roughness remapping"
+  }
+}

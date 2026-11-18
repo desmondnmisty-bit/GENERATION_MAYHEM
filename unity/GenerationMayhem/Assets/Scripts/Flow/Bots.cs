@@ -12,6 +12,7 @@ namespace GenerationMayhem.Flow
     {
         public static Transform Build(string name, Vector3 at, Vector3 lookAt, GameObject model, Color body, Color accent)
         {
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "Dockyard") return null;
             var go = new GameObject(name);
             go.transform.position = at;
             var d = lookAt - at; d.y = 0f; if (d.sqrMagnitude > 0.01f) go.transform.rotation = Quaternion.LookRotation(d.normalized);
@@ -38,7 +39,7 @@ namespace GenerationMayhem.Flow
         public static RefBot Spawn(Vector3 at, Vector3 faceTo, GameObject model)
         {
             var t = BotMesh.Build("RefBot", at, faceTo, model, new Color(0.15f, 0.15f, 0.15f), Color.white);
-            var r = t.gameObject.AddComponent<RefBot>(); r._base = t.position; return r;
+            if (t == null) return null; var r = t.gameObject.AddComponent<RefBot>(); r._base = t.position; return r;
         }
         void OnEnable() { CombatEvents.Died += OnDowned; }
         void OnDisable() { CombatEvents.Died -= OnDowned; }
@@ -59,7 +60,7 @@ namespace GenerationMayhem.Flow
         public static MedBot Spawn(Vector3 at, Vector3 faceTo, GameObject model)
         {
             var t = BotMesh.Build("MedBot_PLACEHOLDER", at, faceTo, model, Color.white, new Color(0.1f, 1f, 0.3f));
-            return t.gameObject.AddComponent<MedBot>();
+            return t != null ? t.gameObject.AddComponent<MedBot>() : null;
         }
         /// <summary>Between rounds: revive anyone down, top everyone up.</summary>
         public void RoundHeal(MatchDirector md)

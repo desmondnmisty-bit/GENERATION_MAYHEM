@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
+using GenerationMayhem.Art;
 using GenerationMayhem.Combat;
 using GenerationMayhem.Player;
 using GenerationMayhem.Traversal;
@@ -26,7 +27,7 @@ namespace GenerationMayhem.Match
         public static bool IsOver => Instance != null && (Instance.State == MatchState.Won || Instance.State == MatchState.Lost);
         public static int Attempts { get; private set; }
         public static bool IntroSeen { get; private set; }
-        public static int AliveVipers => ViperGrunt.AliveCount;
+        public static int AliveVipers => ViperGrunt.AliveCount + IronRoseBrute.AliveCount;
 
         [Header("Family (all four down = loss)")]
         public Health vixen;
@@ -41,7 +42,7 @@ namespace GenerationMayhem.Match
         public SlingshotFinisher finisher;
         public CraneHazard craneX1;
         public CraneHazard craneX2;
-        public Transform[] viperSpawns;
+        public Transform[] fodderSpawns;
         [Tooltip("Optional Viper models (FBX) by ViperKind: Fang, Cobra, TailStrike, Swarm. Empty = pink capsules.")]
         public GameObject[] viperModels;
         public RuntimeAnimatorController viperAnimator;
@@ -104,6 +105,11 @@ namespace GenerationMayhem.Match
         void Start()
         {
             Attempts++;
+            if (DockBrutesOnly) {
+                GenerationMayhem.Flow.GameFlow.MarkStartDone(); IntroSeen=true; State=MatchState.Fighting;
+                if (IronRoseBrute.AliveCount==0 && fodderSpawns!=null) for(int i=0;i<fodderSpawns.Length;i++) if(fodderSpawns[i]) IronRoseBrute.Spawn(fodderSpawns[i].position,i);
+                SetBanner("IRON ROSE SYNDICATE",2f); Debug.Log("[Dockyard] Opening encounter active: Iron Rose Syndicate Brutes only; Slither/Vipers absent."); return;
+            }
             if (stub == null) stub = FindFirstObjectByType<ShatterSlingshotStub>();
             if (victory == null) victory = FindFirstObjectByType<VictoryController>();
             if (boss == null) boss = FindFirstObjectByType<SlitherBoss>();
@@ -126,7 +132,7 @@ namespace GenerationMayhem.Match
                 Say("Slither", "Look who crawled back.");
                 Say("Vixen", "Come say it to my face.");
                 Say("Kailee", "Cool. Gonna stab you.");
-                Say("Ref Bot", "Family versus Vipers! Keep it on the asphalt!");
+                Say("Ref Bot", DockBrutesOnly ? "Family versus the Iron Rose Syndicate! Keep it on the asphalt!" : "Family versus Vipers! Keep it on the asphalt!");
                 float until = Time.time + 16f;
                 yield return null;
                 while (Time.time < until && (HasLine || _lines.Count > 0))
@@ -216,6 +222,7 @@ namespace GenerationMayhem.Match
         // ---------------- waves ----------------
         IEnumerator Wave(int n)
         {
+            if (DockBrutesOnly) { yield return BruteWave(n); yield break; }
             ViperKind[] kinds;
             switch (n)
             {
@@ -227,8 +234,8 @@ namespace GenerationMayhem.Match
             for (int i = 0; i < kinds.Length; i++)
             {
                 if (IsOver) yield break;
-                var at = viperSpawns != null && viperSpawns.Length > 0 && viperSpawns[i % viperSpawns.Length] != null
-                    ? viperSpawns[(i + n) % viperSpawns.Length].position
+                var at = fodderSpawns != null && fodderSpawns.Length > 0 && fodderSpawns[i % fodderSpawns.Length] != null
+                    ? fodderSpawns[(i + n) % fodderSpawns.Length].position
                     : (boss != null ? boss.transform.position + Random.insideUnitSphere * 8f : Vector3.zero);
                 SpawnViper(kinds[i], at, n * 10 + i);
                 yield return new WaitForSeconds(0.45f);
@@ -236,11 +243,23 @@ namespace GenerationMayhem.Match
             if (kinds[kinds.Length - 1] == ViperKind.Swarm) Say("Payton", "Swarm's here. Clumped up, perfect for a Volley.");
         }
 
+        IEnumerator BruteWave(int n)
+        {
+            int count=n==1?3:4; SetBanner("IRON ROSE SYNDICATE INCOMING",2f);
+            for(int i=0;i<count;i++) {
+                if(IsOver) yield break;
+                var at=fodderSpawns!=null && fodderSpawns.Length>0 ? fodderSpawns[(i+n)%fodderSpawns.Length].position : new Vector3(38,0,8);
+                IronRoseBrute.Spawn(at,n*10+i); yield return new WaitForSeconds(.45f);
+            }
+        }
         static readonly Color PinkA = new Color(1f, 0.25f, 0.62f), PinkB = new Color(0.9f, 0.1f, 0.45f),
                               PinkC = new Color(1f, 0.55f, 0.8f), PinkD = new Color(0.75f, 0.2f, 0.75f);
 
+        public bool dockBrutesOnly; // Dock fodder: Iron Rose Syndicate brutes only, using the original IRS_02 soldier asset.
+        bool DockBrutesOnly => dockBrutesOnly || gameObject.scene.name == "Dockyard";
         public ViperGrunt SpawnViper(ViperKind kind, Vector3 at, int index)
         {
+            if (DockBrutesOnly) { Debug.LogWarning("[Dockyard] Viper spawn blocked. Iron Rose Syndicate fodder only."); return null; }
             if (NavMesh.SamplePosition(at, out NavMeshHit hit, 6f, NavMesh.AllAreas)) at = hit.position;
             var go = new GameObject("Viper_" + kind + "_" + index);
             go.transform.position = at;           // position BEFORE the agent exists, so it binds to the right mesh
@@ -266,40 +285,46 @@ namespace GenerationMayhem.Match
             hp.SetMax(kind == ViperKind.TailStrike ? 160f : kind == ViperKind.Cobra ? 55f : kind == ViperKind.Swarm ? 40f : 70f);
             hp.deactivateAfterDeath = 1.6f;
 
-            // Visual
+            // Visual. Fang / Cobra (Hood Strike) / Swarm take the split GLB when it loads.
+            // Tail-Strike is not one of those slots — it keeps the FBX or pink capsule already here.
             var meshRoot = new GameObject("MeshRoot").transform;
             meshRoot.SetParent(go.transform, false);
             Color tint = kind == ViperKind.Fang ? PinkA : kind == ViperKind.TailStrike ? PinkB : kind == ViperKind.Cobra ? PinkD : PinkC;
             Animator anim = null;
-            GameObject model = null;
-            if (viperModels != null && viperModels.Length > 0)
-                model = (int)kind < viperModels.Length && viperModels[(int)kind] != null ? viperModels[(int)kind] : viperModels[0];
-            if (model != null)
+            string parts = kind == ViperKind.Fang ? ViperMeshHang.Fang : kind == ViperKind.Cobra ? ViperMeshHang.Cobra : kind == ViperKind.Swarm ? ViperMeshHang.Swarm : null;
+            bool hung = parts != null && ViperMeshHang.TryHang(meshRoot, parts, col.height);
+            if (!hung)
             {
-                var m = Instantiate(model, meshRoot);
-                m.transform.localPosition = Vector3.zero; m.transform.localRotation = Quaternion.identity;
-                m.transform.localScale = Vector3.one * viperModelScale * (kind == ViperKind.TailStrike ? 1.15f : kind == ViperKind.Swarm ? 0.9f : 1f);
-                foreach (var c in m.GetComponentsInChildren<Collider>()) Destroy(c);
-                anim = m.GetComponentInChildren<Animator>();
-                if (anim == null) anim = m.AddComponent<Animator>();
-                if (viperAnimator != null) anim.runtimeAnimatorController = viperAnimator;
-                anim.applyRootMotion = false;
-                foreach (var r in m.GetComponentsInChildren<Renderer>()) FxUtil.Tint(r, Color.Lerp(r.sharedMaterial != null && r.sharedMaterial.HasProperty("_Color") ? r.sharedMaterial.color : Color.white, tint, 0.35f));
-            }
-            else
-            {
-                var cap = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                Destroy(cap.GetComponent<Collider>());
-                cap.name = "Body";
-                cap.transform.SetParent(meshRoot, false);
-                cap.transform.localPosition = Vector3.up * col.height * 0.5f;
-                cap.transform.localScale = new Vector3(col.radius * 2f, col.height * 0.5f, col.radius * 2f);
-                cap.GetComponent<Renderer>().sharedMaterial = FxUtil.Mat(tint);
-                var visor = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                Destroy(visor.GetComponent<Collider>());
-                visor.transform.SetParent(cap.transform, false);
-                visor.transform.localPosition = new Vector3(0f, 0.55f, 0.42f); visor.transform.localScale = new Vector3(0.7f, 0.15f, 0.2f);
-                visor.GetComponent<Renderer>().sharedMaterial = FxUtil.Mat(FxUtil.ToxicGreen, 2f);
+                GameObject model = null;
+                if (viperModels != null && viperModels.Length > 0)
+                    model = (int)kind < viperModels.Length && viperModels[(int)kind] != null ? viperModels[(int)kind] : viperModels[0];
+                if (model != null)
+                {
+                    var m = Instantiate(model, meshRoot);
+                    m.transform.localPosition = Vector3.zero; m.transform.localRotation = Quaternion.identity;
+                    m.transform.localScale = Vector3.one * viperModelScale * (kind == ViperKind.TailStrike ? 1.15f : kind == ViperKind.Swarm ? 0.9f : 1f);
+                    foreach (var c in m.GetComponentsInChildren<Collider>()) Destroy(c);
+                    anim = m.GetComponentInChildren<Animator>();
+                    if (anim == null) anim = m.AddComponent<Animator>();
+                    if (viperAnimator != null) anim.runtimeAnimatorController = viperAnimator;
+                    anim.applyRootMotion = false;
+                    foreach (var r in m.GetComponentsInChildren<Renderer>()) FxUtil.Tint(r, Color.Lerp(r.sharedMaterial != null && r.sharedMaterial.HasProperty("_Color") ? r.sharedMaterial.color : Color.white, tint, 0.35f));
+                }
+                else
+                {
+                    var cap = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                    Destroy(cap.GetComponent<Collider>());
+                    cap.name = "Body";
+                    cap.transform.SetParent(meshRoot, false);
+                    cap.transform.localPosition = Vector3.up * col.height * 0.5f;
+                    cap.transform.localScale = new Vector3(col.radius * 2f, col.height * 0.5f, col.radius * 2f);
+                    cap.GetComponent<Renderer>().sharedMaterial = FxUtil.Mat(tint);
+                    var visor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    Destroy(visor.GetComponent<Collider>());
+                    visor.transform.SetParent(cap.transform, false);
+                    visor.transform.localPosition = new Vector3(0f, 0.55f, 0.42f); visor.transform.localScale = new Vector3(0.7f, 0.15f, 0.2f);
+                    visor.GetComponent<Renderer>().sharedMaterial = FxUtil.Mat(FxUtil.ToxicGreen, 2f);
+                }
             }
             var fa = go.AddComponent<FighterAnimator>();
             fa.animator = anim;
@@ -379,7 +404,7 @@ namespace GenerationMayhem.Match
 
         void Lose()
         {
-            State = MatchState.Lost;
+            State = MatchState.Lost; if (DockBrutesOnly) { SetBanner("THE FAMILY IS DOWN", 4f); return; }
             Say("Ref Bot", "Family's down! Winner: SLITHER!");
             string[] gloat = { "Interest compounds, mama.", "Same time tomorrow? I'll be here.", "Tell your girl I'll keep her paperwork warm." };
             Say("Slither", gloat[Random.Range(0, gloat.Length)]);

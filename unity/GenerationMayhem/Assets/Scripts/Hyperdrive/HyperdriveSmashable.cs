@@ -8,6 +8,7 @@ namespace GenerationMayhem.Hyperdrive
         public void Smash()
         {
             if (broken) return;
+            GenerationMayhem.Audio.GMGameplayAudio.Play("bang", .8f);
             broken = true; // one reward per object, even for multiple contact callbacks
             var source = GetComponent<Renderer>();
             var material = source ? source.sharedMaterial : null;

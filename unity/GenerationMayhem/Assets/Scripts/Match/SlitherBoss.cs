@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
+using GenerationMayhem.Art;
 using GenerationMayhem.Combat;
 using GenerationMayhem.Traversal;
 
@@ -136,6 +137,8 @@ namespace GenerationMayhem.Match
 
         void Start()
         {
+            // Existing Dockyard Slither slot. The split GLB replaces the capsule or old boss mesh when it loads.
+            SlitherMeshHang.Hang(visualRoot != null ? visualRoot : transform);
             _line = FxUtil.Line(transform, FxUtil.ToxicGreen, 0.35f);
             StartCoroutine(MatchStart());
         }

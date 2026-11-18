@@ -66,6 +66,17 @@ namespace GenerationMayhem.Match
             Build();
         }
 
+        // Unity preserves the Canvas but not the managed Bar wrappers on a Play-mode script reload.
+        // Rebuild this HUD only (not the match) so live wiring cannot flood Update with null references.
+        void OnEnable()
+        {
+            if (!Application.isPlaying || _player != null) return;
+            if (_root != null) { _root.gameObject.SetActive(false); Destroy(_root.gameObject); }
+            _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _endShown = false;
+            Build();
+            Start();
+        }
         void Start()
         {
             if (director == null) director = MatchDirector.Instance != null ? MatchDirector.Instance : FindFirstObjectByType<MatchDirector>();
@@ -77,7 +88,11 @@ namespace GenerationMayhem.Match
             {
                 var es = new GameObject("EventSystem");
                 es.AddComponent<EventSystem>();
+                #if ENABLE_INPUT_SYSTEM
+                es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#else
                 es.AddComponent<StandaloneInputModule>();
+#endif
             }
         }
 
@@ -100,7 +115,7 @@ namespace GenerationMayhem.Match
             _vignette = Img("MistVignette", _root, V(0, 0), V(1, 1), V(.5f, .5f), Vector2.zero, Vector2.zero, new Color(0.4f, 1f, 0.12f, 0f));
             _vignette.raycastTarget = false;
 
-            // ---------------- boss (top centre) ----------------
+            // ---------------- boss (Hyperdrive only; Dock has Iron Rose fodder) ----------------
             var boss = Rect("Boss", _root, V(.5f, 1), V(.5f, 1), V(.5f, 1), new Vector2(0, -24), new Vector2(940, 120));
             _bossName = Txt("Name", boss, V(0, 1), V(1, 1), V(.5f, 1), Vector2.zero, new Vector2(0, 30), "SLITHER  —  BOSS OF THE PINK VIPERS", 24, TextAnchor.MiddleCenter, Color.white);
             _boss = MakeBar("BossBar", boss, new Vector2(0, -34), new Vector2(900, 26), FxUtil.ToxicGreen, null);
@@ -129,7 +144,7 @@ namespace GenerationMayhem.Match
             _playerState = Txt("State", pp, V(0, 1), V(0, 1), V(0, 1), new Vector2(199 * s, -190 * s), new Vector2(360, 24), "", 16, TextAnchor.MiddleLeft, Color.white);
 
             // ---------------- allies (left, above player) ----------------
-            string[] names = { "KAILEE", "BRIANNA", "JESSICA" };
+            string[] names = { "KAILEE", "BRIANNA", "PAYTON" };
             Color[] cols = { KaileeBlue, BriannaEmerald, PaytonYellow };
             for (int i = 0; i < 3; i++)
             {
@@ -162,7 +177,7 @@ namespace GenerationMayhem.Match
             _bannerBg = Img("BannerBg", _root, V(.5f, .5f), V(.5f, .5f), V(.5f, .5f), new Vector2(0, 160), new Vector2(803 * .9f, 303 * .5f), new Color(0, 0, 0, .0f));
             if (bannerArt != null) { _bannerBg.sprite = bannerArt; }
             _banner = Txt("Banner", _root, V(.5f, .5f), V(.5f, .5f), V(.5f, .5f), new Vector2(0, 160), new Vector2(1400, 90), "", 52, TextAnchor.MiddleCenter, Color.white);
-            _hint = Txt("Help", _root, V(0, 1), V(0, 1), V(0, 1), new Vector2(18, -18), new Vector2(560, 300), HelpText, 15, TextAnchor.UpperLeft, new Color(1, 1, 1, .85f));
+            _hint = Txt("Help", _root, V(0, 1), V(0, 1), V(0, 1), new Vector2(18, -18), new Vector2(560, 300), EncounterHelp, 15, TextAnchor.UpperLeft, new Color(1, 1, 1, .85f));
             _vipers = Txt("Vipers", _root, V(1, 1), V(1, 1), V(1, 1), new Vector2(-24, -24), new Vector2(300, 26), "", 18, TextAnchor.MiddleRight, new Color(1f, .45f, .75f));
 
             // Lock-on reticle: 4 corner brackets
@@ -190,8 +205,8 @@ namespace GenerationMayhem.Match
         }
 
         const string HelpText =
-            "<b>CONTROLS</b>  (H hides this)\n" +
-            "WASD / left stick: skate     Left Shift: jump     Space: brake     J: air trick\n" +
+            "<b>CONTROLS</b>  (H hides this · Esc / Start: pause + rebind)\n" +
+            "WASD / left stick: skate     Left Shift / RT: jump+fast gear     Space / A (hold): brake     J / LT: air trick\n" +
             "K / LMB / X: light (Jab › Cross › Kick)\n" +
             "L / RMB / Y: heavy (Elbow › Heavy Kick)   in the air: Ramp Slam\n" +
             "E / B: Check (shove, revives family, breaks Viper-Lock)\n" +
@@ -200,6 +215,9 @@ namespace GenerationMayhem.Match
             "Shove Slither into the oil, bait crane drops, then Slingshot him.\n" +
             "Under 10% HP the Slingshot knocks him into the harbor = WIN.";
 
+        string EncounterHelp => gameObject.scene.name == "Dockyard"
+            ? HelpText.Substring(0, HelpText.IndexOf("Shove Slither")) + "Iron Rose Syndicate Brutes. Stay with your family."
+            : HelpText;
         // =================================================================== update
         void Update()
         {
@@ -220,6 +238,7 @@ namespace GenerationMayhem.Match
                 _boss.fill.color = boss.Health.IsHeated ? Color.Lerp(FxUtil.ToxicGreen, new Color(1, .4f, 0), .6f) : FxUtil.ToxicGreen;
             }
 
+            if(gameObject.scene.name == "Dockyard" && _bossName != null) _bossName.transform.parent.gameObject.SetActive(false);
             // Player
             var vh = vixen != null ? vixen.GetComponent<Health>() : null;
             if (vh != null)
@@ -261,7 +280,7 @@ namespace GenerationMayhem.Match
             _banner.text = showBanner ? d.Banner : "";
             _bannerBg.color = showBanner && bannerArt != null ? Color.white : new Color(0, 0, 0, 0);
             int vc = MatchDirector.AliveVipers;
-            _vipers.text = d != null && d.State == MatchState.PreMatch && !MatchDirector.IntroSeen ? "ENTER: SKIP INTRO" : vc > 0 ? "PINK VIPERS: " + vc : "";
+            _vipers.text = d != null && d.State == MatchState.PreMatch && !MatchDirector.IntroSeen ? "ENTER: SKIP INTRO" : vc > 0 ? (gameObject.scene.name == "Dockyard" ? "IRON ROSE SYNDICATE: " : "PINK VIPERS: ") + vc : "";
 
             // Lock reticle
             var cam = Camera.main;
@@ -316,7 +335,6 @@ namespace GenerationMayhem.Match
                 case "Kailee": return new Color(.4f, .65f, 1f);
                 case "Brianna": return new Color(.2f, .8f, .5f);
                 case "Payton": return PaytonYellow;
-                case "Payton": return PaytonPurple;
                 case "Slither": return FxUtil.ToxicGreen;
                 default: return new Color(.85f, .85f, .85f);
             }

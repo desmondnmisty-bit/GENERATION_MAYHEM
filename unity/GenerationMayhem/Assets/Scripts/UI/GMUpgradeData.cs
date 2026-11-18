@@ -23,7 +23,7 @@ namespace GenerationMayhem.UI
                     _all.Add(WeaponUpgradeDef.Make("vix_res_cd",   "Vixen",  "Sonic Resonator", "PULSE COOLDOWN-", "-12% cooldown",  UpgradeStat.SpecialCooldown, 0.12f, 140));
                     _all.Add(WeaponUpgradeDef.Make("vix_fin",      "Vixen",  "Slingshot",       "FINISHER CHARGE+", "+20% charge",   UpgradeStat.FinisherCharge, 0.20f, 160));
                     _all.Add(WeaponUpgradeDef.Make("kai_blade_dmg","Kailee", "Thermal Blades",  "BLADE HEAT+",   "+15% burn dmg",   UpgradeStat.Damage, 0.15f, 120));
-                    _all.Add(WeaponUpgradeDef.Make("kai_blade_ap", "Kailee", "Thermal Blades",  "ARMOR PIERCE",  "cuts IRS plate",  UpgradeStat.ArmorPierce, 0.10f, 180));
+                    _all.Add(WeaponUpgradeDef.Make("kai_blade_ap", "Kailee", "Thermal Blades",  "ARMOR PIERCE",  "cuts Iron Rose Syndicate plate",  UpgradeStat.ArmorPierce, 0.10f, 180));
                     _all.Add(WeaponUpgradeDef.Make("kai_1911_rof", "Kailee", "K-1911",          "FIRE RATE+",    "+12% RPM",        UpgradeStat.FireRate, 0.12f, 110));
                     _all.Add(WeaponUpgradeDef.Make("kai_1911_clip","Kailee", "K-1911",          "CLIP+",         "+2 rounds",       UpgradeStat.ClipHeat, 2f, 90));
                     _all.Add(WeaponUpgradeDef.Make("bri_coil_dmg", "Brianna","Thermal Coil Gauntlets", "COIL DAMAGE+", "+15% punch", UpgradeStat.Damage, 0.15f, 130));

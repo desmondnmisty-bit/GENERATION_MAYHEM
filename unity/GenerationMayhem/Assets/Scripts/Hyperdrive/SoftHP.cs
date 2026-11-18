@@ -8,6 +8,7 @@ namespace GenerationMayhem.Hyperdrive
         public void ApplyDamage(float d)
         {
             if (hp <= 0) return; hp -= d;
+            GenerationMayhem.Audio.GMGameplayAudio.Play("hit");
             if (isGirl && MomsFrenzy.Instance) { if (hp <= 0) MomsFrenzy.Instance.GirlDowned(girlName); else MomsFrenzy.Instance.GirlHit(girlName); }
             else if (name == "SkatePawn" && MomsFrenzy.Instance && !MomsFrenzy.Instance.Raging) MomsFrenzy.Instance.VixenHit();
             if (hp <= 0 && CompareTag("Enemy")) { HyperdriveHUD.Callout("PINK VIPER DOWN"); Destroy(gameObject, 0.1f); }

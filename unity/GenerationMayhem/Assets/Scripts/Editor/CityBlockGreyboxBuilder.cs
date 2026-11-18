@@ -14,6 +14,7 @@ using Unity.Cinemachine;
 using GenerationMayhem.Player;
 using GenerationMayhem.Combat;
 using GenerationMayhem.Traversal;
+using GenerationMayhem.Art;
 
 namespace GenerationMayhem.EditorTools
 {
@@ -56,7 +57,9 @@ namespace GenerationMayhem.EditorTools
         static int _triggerLayer;
 
         [MenuItem("Generation Mayhem/Build CityBlock Greybox")]
-        public static void Build()
+        public static void BuildDockyard() { BuildAt("Assets/Scenes/Dockyard.unity"); }
+        public static void Build() { BuildAt(ScenePath); }
+        static void BuildAt(string outputPath)
         {
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
 
@@ -88,13 +91,13 @@ namespace GenerationMayhem.EditorTools
             BuildSystems(systems, mistGates, respawn);
             BuildNav(nav, k1, k2, k3, r1, r2);
             // Fighters come AFTER the bake so their colliders/meshes never carve the NavMesh.
-            CityBlockMatchBuilder.Build(root, systems);
+            CityBlockMatchBuilder.Build(root, systems, outputPath.EndsWith("/Dockyard.unity"));
 
             EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene, ScenePath);
-            CityBlockMatchBuilder.AddSceneToBuildSettings(ScenePath);
+            EditorSceneManager.SaveScene(scene, outputPath);
+            CityBlockMatchBuilder.AddSceneToBuildSettings(outputPath);
             AssetDatabase.SaveAssets();
-            Debug.Log("[CityBlockGreybox] Built " + ScenePath + (CityBlockKitLibrary.Report.Count > 0
+            Debug.Log("[CityBlockGreybox] Built " + outputPath + (CityBlockKitLibrary.Report.Count > 0
                 ? "\nKit notes:\n - " + string.Join("\n - ", CityBlockKitLibrary.Report) : ""));
         }
 
@@ -148,6 +151,8 @@ namespace GenerationMayhem.EditorTools
             Crate(brk, new Vector3(-18.5f, 0, 4.5f));
             Crate(brk, new Vector3(-17.5f, 0, 3.5f));
             Crate(brk, new Vector3(-16.5f, 0, 4.5f));
+            // Loot props beside the crates. Not fighters. Imported mesh colliders are stripped; Breakable owns each box.
+            LootChestHang.PlaceAll(brk, false);
         }
 
         // ------------------------------------------------------------------ zone A

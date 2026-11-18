@@ -1,5 +1,5 @@
 // Ally Soft kits for L2 (stubs that fire placeholder FX/projectiles): Brianna thermal gauntlets + chest-buster,
-// Payton Gatling (Payton = former "Jessica"), Kailee .40 + Slide Under Slice (see Kailee/SlideUnderSlice.cs).
+// Payton Gatling, Kailee .40 + Slide Under Slice (see Kailee/SlideUnderSlice.cs).
 using UnityEngine;
 namespace GenerationMayhem.Hyperdrive
 {

@@ -1,0 +1,154 @@
+{
+  "source": "/workspace/generation-mayhem/web/src/audio.ts",
+  "sha256": "c7d46d8775ed1a86ba4c3ddb5c13a7393753a5df0e12c183c9a043573b8fd131",
+  "note": "Offline rendering of the existing project WebAudio synth recipes; no new composition. Unity-only asset restoration. Web source and web build unchanged.",
+  "clips": [
+    {
+      "name": "dock_calm",
+      "duration": 10,
+      "rms": 0.011700197097700718,
+      "peak": 0.07431557029485703,
+      "bytes": 1764044
+    },
+    {
+      "name": "dock_combat",
+      "duration": 7.058820861678004,
+      "rms": 0.027213815075827635,
+      "peak": 0.21019724011421204,
+      "bytes": 1245220
+    },
+    {
+      "name": "dock_threat",
+      "duration": 6.1538321995464855,
+      "rms": 0.031246730591553282,
+      "peak": 0.3092089891433716,
+      "bytes": 1085580
+    },
+    {
+      "name": "hyperdrive_calm",
+      "duration": 11.428571428571429,
+      "rms": 0.01181115092889839,
+      "peak": 0.08069997280836105,
+      "bytes": 2016044
+    },
+    {
+      "name": "hyperdrive_combat",
+      "duration": 7.741950113378685,
+      "rms": 0.026153640627938,
+      "peak": 0.20403018593788147,
+      "bytes": 1365724
+    },
+    {
+      "name": "hyperdrive_threat",
+      "duration": 6.486485260770975,
+      "rms": 0.03035962741638139,
+      "peak": 0.2685715854167938,
+      "bytes": 1144260
+    },
+    {
+      "name": "sfx_punch",
+      "duration": 2,
+      "rms": 0.02114088905185315,
+      "peak": 0.573244571685791,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_heavy",
+      "duration": 2,
+      "rms": 0.020972459922184827,
+      "peak": 0.46626362204551697,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_hit",
+      "duration": 2,
+      "rms": 0.010771496922096472,
+      "peak": 0.21169975399971008,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_whiff",
+      "duration": 2,
+      "rms": 0.00158810239538547,
+      "peak": 0.06269723176956177,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_pistol",
+      "duration": 2,
+      "rms": 0.01141251372395971,
+      "peak": 0.4548758864402771,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_gatling",
+      "duration": 2,
+      "rms": 0.006537483540428108,
+      "peak": 0.29189106822013855,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_gauntlet",
+      "duration": 2,
+      "rms": 0.015547176748162188,
+      "peak": 0.5658149123191833,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_bang",
+      "duration": 2,
+      "rms": 0.09488207253311158,
+      "peak": 1.0596400499343872,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_land",
+      "duration": 2,
+      "rms": 0.0005477699800134803,
+      "peak": 0.015337699092924595,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_hop",
+      "duration": 2,
+      "rms": 0.006310349029215982,
+      "peak": 0.1337653249502182,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_brake",
+      "duration": 2,
+      "rms": 0.0020356500907694128,
+      "peak": 0.05731814727187157,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_blade",
+      "duration": 2,
+      "rms": 0.002601103170159297,
+      "peak": 0.09440801292657852,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_clang",
+      "duration": 2,
+      "rms": 0.01913305292412547,
+      "peak": 0.27385473251342773,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_casing",
+      "duration": 2,
+      "rms": 0.0005802737498364481,
+      "peak": 0.019863538444042206,
+      "bytes": 352844
+    },
+    {
+      "name": "sfx_skate",
+      "duration": 1.5,
+      "rms": 0.013565395758948343,
+      "peak": 0.054925404489040375,
+      "bytes": 264644
+    }
+  ]
+}

@@ -46,7 +46,8 @@ namespace GenerationMayhem.UI
             while (MatchDirector.Instance == null) yield return null;
             while (MatchDirector.Instance.State == MatchState.PreMatch) yield return null;
             GMFlowEvents.MatchStart(GMSave.Round);          // RefBot "FIGHT!" hook
-            while (!MatchDirector.IsOver) { if (Input.GetKeyDown(KeyCode.Escape)) { GoStart(); yield break; } yield return null; }
+            // Esc / Start now opens GMPauseMenu (Input System "Pause" action); its QUIT TO MENU calls GoStart().
+            while (!MatchDirector.IsOver) yield return null;
             bool won = MatchDirector.Instance.State == MatchState.Won;
             GMSave.Scrap += won ? ScrapPerWin : ScrapPerLoss;
             GMFlowEvents.RoundEnd(GMSave.Round, won);       // RefBot KO / MedBot revive hook

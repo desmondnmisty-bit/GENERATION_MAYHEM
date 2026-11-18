@@ -53,7 +53,7 @@ namespace GenerationMayhem.EditorTools
         [MenuItem("Generation Mayhem/Characters/Flip Hero Models 180 (toggle)", true)]
         static bool ToggleFlipCheck() { Menu.SetChecked("Generation Mayhem/Characters/Flip Hero Models 180 (toggle)", Flip); return true; }
 
-        public static void Build(Transform root, Transform systems)
+        public static void Build(Transform root, Transform systems, bool dockBrutesOnly = false)
         {
             Report.Clear();
             var fighters = new GameObject("Match_Fighters").transform;
@@ -87,21 +87,21 @@ namespace GenerationMayhem.EditorTools
             var payton = Ally(fighters, "Payton", AllyRole.Payton, new Vector3(23, 0, 4), PaytonYellow, player.transform, new Vector3(3.2f, 0, -3.4f), false, acShared);
 
             // ---------------- Slither ----------------
-            var boss = Boss(fighters);
+            var boss = dockBrutesOnly ? null : Boss(fighters);
 
             // ---------------- Ref Bot (decor + subtitles speaker) ----------------
-            RefBot(fighters);
+            if (!dockBrutesOnly) RefBot(fighters);
 
             // ---------------- cranes ----------------
             var x1 = Crane(fighters, "X1", new Vector3(24, 0, 20), "CraneDrop_X1");
             var x2 = Crane(fighters, "X2", new Vector3(12, 0, 9), "CraneDrop_X2");
 
             // ---------------- spawns ----------------
-            var spawnRoot = new GameObject("Viper_Spawns").transform; spawnRoot.SetParent(fighters, false);
+            var spawnRoot = new GameObject(dockBrutesOnly ? "IronRoseBrute_Spawns" : "Viper_Spawns").transform; spawnRoot.SetParent(fighters, false);
             var spawns = new List<Transform>();
             foreach (var p in new[] { new Vector3(-4, 0, 11.85f), new Vector3(-9, 0, 4.75f), new Vector3(38, 0, 25), new Vector3(38, 0, 8) })
             {
-                var t = new GameObject("ViperSpawn_" + spawns.Count).transform; t.SetParent(spawnRoot, false); t.position = p; spawns.Add(t);
+                var t = new GameObject((dockBrutesOnly ? "IronRoseBruteSpawn_" : "ViperSpawn_") + spawns.Count).transform; t.SetParent(spawnRoot, false); t.position = p; spawns.Add(t);
             }
 
             // ---------------- director / finisher ----------------
@@ -113,8 +113,8 @@ namespace GenerationMayhem.EditorTools
             director.kailee = kailee; director.brianna = brianna; director.payton = payton;
             director.boss = boss; director.stub = stub; director.victory = victory; director.finisher = finisher;
             director.craneX1 = x1; director.craneX2 = x2;
-            director.viperSpawns = spawns.ToArray();
-            if (!CapsulesOnly)
+            director.dockBrutesOnly = dockBrutesOnly; director.fodderSpawns = spawns.ToArray();
+            if (!CapsulesOnly && !dockBrutesOnly)
             {
                 var models = new[]
                 {

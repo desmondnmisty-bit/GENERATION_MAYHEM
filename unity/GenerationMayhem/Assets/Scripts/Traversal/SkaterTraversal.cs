@@ -2,6 +2,7 @@
 // CityBlock slice — per-skater traversal state: Ground / Air (+tricks) / Grind / WallRide (§3.1–3.3).
 
 using UnityEngine;
+using GenerationMayhem.Controls;
 using GenerationMayhem.Player;
 
 namespace GenerationMayhem.Traversal
@@ -9,16 +10,17 @@ namespace GenerationMayhem.Traversal
     /// <summary>
     /// Sits next to SkatePawnController. Ground + plain air movement stays in SkatePawnController;
     /// Grind and WallRide take over via SkatePawnController.ExternalControl.
-    /// Input is legacy Input Manager (matches the existing stubs). Replace with Input System actions later.
+    /// Input: Input System actions via GMControls (Jump / Trick / Move), player slot 0.
+    /// Mapping + remap docs: Assets/Resources/Input/CONTROLS.md.
     /// </summary>
     [RequireComponent(typeof(SkatePawnController))]
     public class SkaterTraversal : MonoBehaviour
     {
         public enum TraversalState { Ground, Air, Grind, WallRide }
 
-        [Header("Input (legacy stub)")]
-        [SerializeField] KeyCode jumpKey = KeyCode.LeftShift;   // Space is already brake in SkatePawnController
-        [SerializeField] KeyCode trickKey = KeyCode.J;
+        [Header("Input")]
+        // Jump = Shift / RT, Trick = J / LT (Space / A-Cross is already brake in SkatePawnController).
+        // Bindings live in Assets/Resources/Input/GMControls.inputactions; rebind via pause menu / settings.
         [SerializeField] float ollieVerticalSpeed = 7f;
 
         [Header("Air tricks (§3.1) — shared set at slice")]
@@ -60,6 +62,10 @@ namespace GenerationMayhem.Traversal
         float _railAlong; int _railDir; float _railSpeed;
         float _wallVy; Vector3 _wallTangent; float _wallSpeed;
 
+        GMControls _controls;
+        GMControls Controls => _controls ?? (_controls = GMControls.For(0));
+        bool JumpPressed => Controls.Jump.WasPressedThisFrame();
+
         void Awake()
         {
             Pawn = GetComponent<SkatePawnController>();
@@ -87,7 +93,7 @@ namespace GenerationMayhem.Traversal
         void TickGround()
         {
             if (!Pawn.IsGrounded) { EnterAir(Pawn.PlanarVelocity + Vector3.up * Pawn.VerticalSpeed, false, setVelocity: false); return; }
-            if (!Pawn.InputLocked && Input.GetKeyDown(jumpKey) && _stumbleUntil <= 0f)
+            if (!Pawn.InputLocked && JumpPressed && _stumbleUntil <= 0f)
             {
                 if (TryStartWallRide(requireAir: false)) return;
                 EnterAir(Pawn.PlanarVelocity + Vector3.up * ollieVerticalSpeed, false);
@@ -107,9 +113,10 @@ namespace GenerationMayhem.Traversal
         void TickAir()
         {
             // Trick input: button + stick direction (4 tricks).
-            if (_trick < 0 && !Pawn.InputLocked && Input.GetKeyDown(trickKey))
+            if (_trick < 0 && !Pawn.InputLocked && Controls.Trick.WasPressedThisFrame())
             {
-                float x = Input.GetAxisRaw("Horizontal"), y = Input.GetAxisRaw("Vertical");
+                Vector2 m = Controls.Move.ReadValue<Vector2>();
+                float x = m.x, y = m.y;
                 _trick = Mathf.Abs(y) >= Mathf.Abs(x) ? (y >= 0f ? 0 : 2) : (x > 0f ? 1 : 3);
                 _trickStart = Time.time;
                 if (animator != null && _trick < trickTriggers.Length && !string.IsNullOrEmpty(trickTriggers[_trick]))
@@ -179,12 +186,12 @@ namespace GenerationMayhem.Traversal
             if (flat.sqrMagnitude > 1e-4f) transform.rotation = Quaternion.LookRotation(flat, Vector3.up);
 
             // Balance: drifts, stick corrects; clamps at ±1 — no fail at slice.
-            float input = Input.GetAxisRaw("Horizontal");
+            float input = Controls.Move.ReadValue<Vector2>().x;
             Balance = Mathf.Clamp(Balance + (Mathf.Sin(Time.time * 2.3f) * balanceDrift - input * 1.5f * balanceDrift) * dt, -1f, 1f);
 
             bool atEnd = _railAlong <= 0f || _railAlong >= CurrentRail.Length;
             if (atEnd) ExitGrind(tan * _railSpeed + Vector3.up * 2f);
-            else if (Input.GetKeyDown(jumpKey)) ExitGrind(tan * _railSpeed + Vector3.up * railJumpOffVertical);
+            else if (JumpPressed) ExitGrind(tan * _railSpeed + Vector3.up * railJumpOffVertical);
         }
 
         void ExitGrind(Vector3 v)
@@ -244,7 +251,7 @@ namespace GenerationMayhem.Traversal
             transform.rotation = Quaternion.LookRotation(_wallTangent, Vector3.up);
 
             float t = Time.time - StateStartTime;
-            if (Input.GetKeyDown(jumpKey))
+            if (JumpPressed)
                 EndWallRide(_wallTangent * _wallSpeed + WallNormal * wallJumpOut + Vector3.up * wallJumpUp);
             else if (!still || t >= wallRideMaxTime)
                 EndWallRide(_wallTangent * _wallSpeed + WallNormal * 1f + Vector3.up * Mathf.Min(_wallVy, 0f));
